@@ -35,7 +35,7 @@ import java.util.LinkedList;
  * semantics. When a <tt>wake()</tt> or <tt>wakeAll()</tt> wakes up another
  * thread, the woken thread is simply put on the ready list, and it is the
  * responsibility of the woken thread to reacquire the lock (this reacquire is
- * taken core of in <tt>sleep()</tt>).
+ * taken care of in <tt>sleep()</tt>).
  * 
  * <p>
  * By contrast, some implementations of condition variables obey
@@ -95,7 +95,7 @@ public class Condition {
 	public void wake() {
 		Lib.assertTrue(conditionLock.isHeldByCurrentThread());
 
-		if (!waitQueue.isEmpty())
+		if (!waitQueue.isEmpty())			
 			((Semaphore) waitQueue.removeFirst()).V(); //ready a thread
 		    //KThread thread = waitQueue.pop()
 		   /// thread.ready()
