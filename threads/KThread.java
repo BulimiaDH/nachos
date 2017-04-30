@@ -200,9 +200,11 @@ public class KThread {
 
 		Lib.assertTrue(toBeDestroyed == null);
 		toBeDestroyed = currentThread;
-
+        
 		currentThread.status = statusFinished;
-
+        if (waitingOnMeToFinish != null){
+        	waitingOnMeToFinish.ready();
+        }
 		sleep();
 	}
 
@@ -281,10 +283,14 @@ public class KThread {
 	 * is not guaranteed to return. This thread must not be the current thread.
 	 */
 	public void join() {
+		boolean intStatus = Machine.interrupt().disable();
 		Lib.debug(dbgThread, "Joining to thread: " + toString());
 
 		Lib.assertTrue(this != currentThread);
 
+		waitingOnMeToFinish = currentThread;
+		KThread.sleep();
+		Machine.interrupt().restore(intStatus);
 	}
 
 	/**
@@ -465,4 +471,6 @@ public class KThread {
 	private static KThread toBeDestroyed = null;
 
 	private static KThread idleThread = null;
+
+	private static KThread waitingOnMeToFinish = null;
 }

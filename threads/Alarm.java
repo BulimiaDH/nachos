@@ -29,7 +29,10 @@ public class Alarm {
 	 * should be run.
 	 */
 	public void timerInterrupt() {
-		KThread.currentThread().yield();
+		//current time = Machine.timer().getTime()
+
+		//go through the list of
+		//KThread.currentThread().yield();
 	}
 
 	/**
@@ -47,7 +50,23 @@ public class Alarm {
 	public void waitUntil(long x) {
 		// for now, cheat just to get something working (busy waiting is bad)
 		long wakeTime = Machine.timer().getTime() + x;
+
+		//make a sleeing thread(KThread.currenThrea)
+		//go to sleep
+		//???
+
+
 		while (wakeTime > Machine.timer().getTime())
 			KThread.yield();
+
 	}
+
+	//a list or set
+	/*
+	private static class SleepingThread(){
+		KThread thread;
+		long wakeTime;
+	}
+	List<SleepingThread> list;
+	*/
 }

@@ -80,10 +80,11 @@ public class Condition {
 		Lib.assertTrue(conditionLock.isHeldByCurrentThread());
 
 		Semaphore waiter = new Semaphore(0);
-		waitQueue.add(waiter);
-
+		waitQueue.add(waiter);//remember the semaphore so I can unblock it later
+		//waitQueue.add(cuThread);
 		conditionLock.release();
-		waiter.P();
+		waiter.P();     //is to blcok guarantee to block you, different from sleep
+		//currentThread.P() block the currentThread
 		conditionLock.acquire();
 	}
 
@@ -95,7 +96,9 @@ public class Condition {
 		Lib.assertTrue(conditionLock.isHeldByCurrentThread());
 
 		if (!waitQueue.isEmpty())
-			((Semaphore) waitQueue.removeFirst()).V();
+			((Semaphore) waitQueue.removeFirst()).V(); //ready a thread
+		    //KThread thread = waitQueue.pop()
+		   /// thread.ready()
 	}
 
 	/**
