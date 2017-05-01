@@ -23,6 +23,7 @@ public class Condition2 {
 	 */
 	public Condition2(Lock conditionLock) {
 		this.conditionLock = conditionLock;
+		waitQueue = new LinkedList<KThread>();
 	}
 
 	/**

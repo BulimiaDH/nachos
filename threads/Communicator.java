@@ -28,12 +28,15 @@ public class Communicator {
 	 * @param word the integer to transfer.
 	 */
 	public void speak(int word) {
-
-		while(nobody is speaking){
-			this.word = word;
-			wait(someone to listen);
-			
+		/*
+		while(somebodyIsSpeaking){
+			block myself
 		} 
+		someoneIsSpeaking = true;
+		this.word  = word;
+		wake up a listener if they are waiting for someone to speak
+		wait until a listener has acknowledge they have heard my word
+		*/
 
 	}
 
@@ -44,6 +47,17 @@ public class Communicator {
 	 * @return the integer transferred.
 	 */
 	public int listen() {
+		
+		// if (!someoneIsSpeaking){
+		// 	wake up someone who is waiting to speak
+		// 	wait until someone is someone
+		// }
+		// int heardWord = this.word;
+		// someoneIsSpeaking = false;
+		// acknowledge to the speaker that you've heard them
+		// return the heardwrod;
 		return 0;
+
 	}
+	boolean someoneIsSpeaking = false;
 }

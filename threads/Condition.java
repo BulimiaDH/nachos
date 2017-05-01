@@ -76,7 +76,7 @@ public class Condition {
 	 * semaphore, so thre is no chance the sleeper will miss the wake-up, even
 	 * though the lock is released before caling <tt>P()</tt>.
 	 */
-	public void sleep() {
+	public void sleep() { //wait
 		Lib.assertTrue(conditionLock.isHeldByCurrentThread());
 
 		Semaphore waiter = new Semaphore(0);
@@ -92,7 +92,7 @@ public class Condition {
 	 * Wake up at most one thread sleeping on this condition variable. The
 	 * current thread must hold the associated lock.
 	 */
-	public void wake() {
+	public void wake() {  //signal
 		Lib.assertTrue(conditionLock.isHeldByCurrentThread());
 
 		if (!waitQueue.isEmpty())			
