@@ -14,6 +14,7 @@ public class Communicator {
 	 * Allocate a new communicator.
 	 */
 	public Communicator() {
+		int word;
 	}
 
 	/**
@@ -27,6 +28,13 @@ public class Communicator {
 	 * @param word the integer to transfer.
 	 */
 	public void speak(int word) {
+
+		while(nobody is speaking){
+			this.word = word;
+			wait(someone to listen);
+			
+		} 
+
 	}
 
 	/**
