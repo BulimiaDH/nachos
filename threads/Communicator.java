@@ -14,10 +14,6 @@ public class Communicator {
 	 * Allocate a new communicator.
 	 */
 	public Communicator() {
-		this.cLock = new Lock();
-		this.Speaker = new Condition(this.cLock);
-		this.Listener = new Condition(this.cLock);
-		this.Ack = new Condition(this.cLock);
 
 	}
 
@@ -32,15 +28,14 @@ public class Communicator {
 	 * @param word the integer to transfer.
 	 */
 	public void speak(int word) {
-		this.cLock.acquire();
-		while(this.someoneIsSpeaking)
-			this.Speaker.sleep();
-		this.someoneIsSpeaking = true;
-		this.word  = word;
-		this.Listener.wake();
-        this.Ack.sleep();
-        this.cLock.release();
-		
+		cLock.acquire();
+		while(someoneIsSpeaking)
+			Speaker.sleep();
+		someoneIsSpeaking = true;
+		message  = word;
+		Listener.wake();
+		Ack.sleep();
+        cLock.release();	
 	}
 	/**
 	 * Wait for a thread to speak through this communicator, and then return the
@@ -49,18 +44,22 @@ public class Communicator {
 	 * @return the integer transferred.
 	 */
 	public int listen() {
-		this.cLock.acquire();
-		while (!this.someoneIsSpeaking)
-			this.Listener.sleep();
-		int word = this.word;
-		this.someoneIsSpeaking = false;
-		this.Ack.wake();
-		this.Speaker.wake();
-		this.cLock.release();
+		cLock.acquire();
+		while (!someoneIsSpeaking){
+			Speaker.wake();
+			Listener.sleep();
+		}	
+		int word = message;
+		someoneIsSpeaking = false;
+		Ack.wake();
+		cLock.release();
 		return word;
 	}
-	boolean someoneIsSpeaking = false;
-	int word;
-	Lock cLock;
-	Condition Speaker, Listener, Ack;
+	
+	private boolean someoneIsSpeaking = false;
+	private int message;
+	private Lock cLock = new Lock();
+	private Condition Speaker = new Condition(cLock);
+	private Condition Listener = new Condition(cLock);
+	private Condition Ack = new Condition(cLock);
 }
