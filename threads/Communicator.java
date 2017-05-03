@@ -14,10 +14,6 @@ public class Communicator {
 	 * Allocate a new communicator.
 	 */
 	public Communicator() {
-		this.cLock = new Lock();
-		this.Speaker = new Condition(this.cLock);
-		this.Listener = new Condition(this.cLock);
-		this.Ack = new Condition(this.cLock);
 
 	}
 
@@ -32,14 +28,15 @@ public class Communicator {
 	 * @param word the integer to transfer.
 	 */
 	public void speak(int word) {
-		this.cLock.acquire();
-		while(this.someoneIsSpeaking)
-			this.Speaker.sleep();
-		this.someoneIsSpeaking = true;
-		this.word  = word;
-		this.Listener.wake();
-        this.Ack.sleep();
-        this.cLock.release();
+		cLock.acquire();
+		while(someoneIsSpeaking)
+			Speaker.sleep();
+		someoneIsSpeaking = true;
+		message  = word;
+		Listener.wake();
+		Ack.sleep();
+        cLock.release();
+
 		
 	}
 	/**
@@ -49,18 +46,74 @@ public class Communicator {
 	 * @return the integer transferred.
 	 */
 	public int listen() {
-		this.cLock.acquire();
-		while (!this.someoneIsSpeaking)
-			this.Listener.sleep();
-		int word = this.word;
-		this.someoneIsSpeaking = false;
-		this.Ack.wake();
-		this.Speaker.wake();
-		this.cLock.release();
+		cLock.acquire();
+		while (!someoneIsSpeaking){
+			Speaker.wake();
+			Listener.sleep();
+		}	
+		int word = message;
+		someoneIsSpeaking = false;
+		Ack.wake();
+		cLock.release();
 		return word;
 	}
-	boolean someoneIsSpeaking = false;
-	int word;
-	Lock cLock;
-	Condition Speaker, Listener, Ack;
+ 
+
+	// private static class Speaker implements Runnable {
+	// 	Speaker(Communicator com, String name) {
+	// 	    this.com = com;
+	// 	    this.name = name;
+	// 	}
+
+	// 	public void run() {
+	// 	    //two things to say
+	// 	    for (int i = 0; i < 2; i++) {
+	// 		com.speak(i);
+	// 		System.out.println(name + " says " + i);
+	// 	    }
+	// 	    System.out.println(name + " is done");
+	// 	}
+
+	// 	private Communicator com;
+	// 	private String name;
+	// }
+
+	// private static class Listener implements Runnable {
+	// 	Listener(Communicator com, String name) {
+	// 	    this.com = com;
+	// 	    this.name = name;
+	// 	}
+
+	// 	public void run() {
+	// 	    //two things to hear
+	// 	    for (int i = 0; i < 2; i++) {
+	// 			int heard = com.listen();
+	// 			System.out.println(name + " hears " + heard);
+	// 	    }
+	// 	    System.out.println(name + " is done");
+	// 	}
+
+	// 		private Communicator com;
+	// 		private String name;
+	//     }
+
+	//     public static void selfTest() {
+	// 	Communicator com1 = new Communicator();
+		
+	// 	KThread thread1 = new KThread(new Speaker(com1, "Sherri"));
+	// 	KThread thread2 = new KThread(new Listener(com1, "Yasin"));
+	// 	KThread thread3 = new KThread(new Speaker(com1, "Karen"));
+	// 	thread1.fork();
+	// 	thread2.fork();
+	// 	thread3.fork();
+	// 	//once billy joe is done then the other people get cut off because he is the main thread which is done
+	// 	new Listener(com1, "Billy Joe").run();
+	//    }
+	
+	private boolean someoneIsSpeaking = false;
+	private int message;
+	private Lock cLock = new Lock();
+	private Condition Speaker = new Condition(cLock);
+	private Condition Listener = new Condition(cLock);
+	private Condition Ack = new Condition(cLock);
 }
