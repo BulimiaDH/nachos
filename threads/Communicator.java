@@ -35,9 +35,7 @@ public class Communicator {
 		message  = word;
 		Listener.wake();
 		Ack.sleep();
-        cLock.release();
-
-		
+        cLock.release();	
 	}
 	/**
 	 * Wait for a thread to speak through this communicator, and then return the
@@ -57,58 +55,6 @@ public class Communicator {
 		cLock.release();
 		return word;
 	}
- 
-
-	// private static class Speaker implements Runnable {
-	// 	Speaker(Communicator com, String name) {
-	// 	    this.com = com;
-	// 	    this.name = name;
-	// 	}
-
-	// 	public void run() {
-	// 	    //two things to say
-	// 	    for (int i = 0; i < 2; i++) {
-	// 		com.speak(i);
-	// 		System.out.println(name + " says " + i);
-	// 	    }
-	// 	    System.out.println(name + " is done");
-	// 	}
-
-	// 	private Communicator com;
-	// 	private String name;
-	// }
-
-	// private static class Listener implements Runnable {
-	// 	Listener(Communicator com, String name) {
-	// 	    this.com = com;
-	// 	    this.name = name;
-	// 	}
-
-	// 	public void run() {
-	// 	    //two things to hear
-	// 	    for (int i = 0; i < 2; i++) {
-	// 			int heard = com.listen();
-	// 			System.out.println(name + " hears " + heard);
-	// 	    }
-	// 	    System.out.println(name + " is done");
-	// 	}
-
-	// 		private Communicator com;
-	// 		private String name;
-	//     }
-
-	//     public static void selfTest() {
-	// 	Communicator com1 = new Communicator();
-		
-	// 	KThread thread1 = new KThread(new Speaker(com1, "Sherri"));
-	// 	KThread thread2 = new KThread(new Listener(com1, "Yasin"));
-	// 	KThread thread3 = new KThread(new Speaker(com1, "Karen"));
-	// 	thread1.fork();
-	// 	thread2.fork();
-	// 	thread3.fork();
-	// 	//once billy joe is done then the other people get cut off because he is the main thread which is done
-	// 	new Listener(com1, "Billy Joe").run();
-	//    }
 	
 	private boolean someoneIsSpeaking = false;
 	private int message;

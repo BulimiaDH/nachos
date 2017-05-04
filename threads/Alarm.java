@@ -20,6 +20,7 @@ public class Alarm {
 	 */
 	public Alarm() {
 		list = new LinkedList<SleepingThread>();
+		lock = new Lock();
 		Machine.timer().setInterruptHandler(new Runnable() {
 			public void run() {
 				timerInterrupt();
@@ -67,10 +68,10 @@ public class Alarm {
 	 */
 	public void waitUntil(long x) {
 		// for now, cheat just to get something working (busy waiting is bad)
-		boolean intStatus = Machine.interrupt().disable();
 		long wakeTime = Machine.timer().getTime() + x;
 		SleepingThread st = new SleepingThread(KThread.currentThread(), wakeTime);
 		list.add(st);
+		boolean intStatus = Machine.interrupt().disable();
 		KThread.sleep();
 		Machine.interrupt().restore(intStatus);
 		//while (wakeTime > Machine.timer().getTime())
@@ -86,5 +87,6 @@ public class Alarm {
 		}
 	}
 	LinkedList<SleepingThread> list;
+	private Lock lock;
 	
 }

@@ -202,8 +202,9 @@ public class KThread {
 		toBeDestroyed = currentThread;
         
 		currentThread.status = statusFinished;
-        if (waitingOnMeToFinish != null){
-        	waitingOnMeToFinish.ready();
+        if (currentThread.waitingOnMeToFinish != null){
+        	currentThread.waitingOnMeToFinish.ready();
+        	currentThread.waitingOnMeToFinish = null;
         }
 		sleep();
 	}
@@ -288,7 +289,7 @@ public class KThread {
 
 		Lib.assertTrue(this != currentThread);
 
-		waitingOnMeToFinish = currentThread;
+		this.waitingOnMeToFinish = currentThread;
 		KThread.sleep();
 		Machine.interrupt().restore(intStatus);
 	}
@@ -424,6 +425,7 @@ public class KThread {
 
 		new KThread(new PingTest(1)).setName("forked thread").fork();
 		new PingTest(0).run();
+
 	}
 
 	private static final char dbgThread = 't';
@@ -475,5 +477,5 @@ public class KThread {
 
 	private static KThread idleThread = null;
 
-	private static KThread waitingOnMeToFinish = null;
+	public KThread waitingOnMeToFinish = null;
 }

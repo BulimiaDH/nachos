@@ -76,7 +76,6 @@ public class Condition2 {
 		    thread.ready();
 		    thread = waitQueue.nextThread();
 		}
-
 		Machine.interrupt().restore(intStatus);
 
 	}
