@@ -206,7 +206,7 @@ public class UserProcess {
 	private boolean load(String name, String[] args) {
 		Lib.debug(dbgProcess, "UserProcess.load(\"" + name + "\")");
 
-		OpenFile executable = ThreadedKernel.fileSystem.open(name, false); //true create false just open？
+		OpenFile executable = ThreadedKernel.fileSystem.open(name, false); //true create false just open
 		if (executable == null) {
 			Lib.debug(dbgProcess, "\topen failed");
 			return false;
@@ -366,9 +366,11 @@ public class UserProcess {
 				}
 				fileTable.put(fd, file);
 				fdTable.put(fileName, fd);
+				System.out.println("the fd is "+ fd);
 				return fd;
 			}
 		}
+
 		return -1;
 
 		/**
@@ -488,7 +490,7 @@ public class UserProcess {
 		file.close();
 
 		fileTable.remove(fd);
-		fdTable.values().remove(fd); //删掉fdTable里面的
+		fdTable.values().remove(fd); //delete fdTable entry
 		return 0;
 	}
 
