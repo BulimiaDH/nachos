@@ -3,6 +3,7 @@ package nachos.userprog;
 import nachos.machine.*;
 import nachos.threads.*;
 import nachos.userprog.*;
+import java.util.*;
 
 import java.io.EOFException;
 
@@ -23,10 +24,18 @@ public class UserProcess {
 	 * Allocate a new process.
 	 */
 	public UserProcess() {
+
 		int numPhysPages = Machine.processor().getNumPhysPages();
 		pageTable = new TranslationEntry[numPhysPages];
 		for (int i = 0; i < numPhysPages; i++)
 			pageTable[i] = new TranslationEntry(i, i, true, false, false, false);
+
+		fileTable = new HashMap<Integer, OpenFile>();
+		fdTable = new HashMap<String, Integer>();
+
+		fileTable.put(0, UserKernel.console.openForReading());
+		fileTable.put(1, UserKernel.console.openForReading());
+
 	}
 
 	/**
@@ -197,7 +206,7 @@ public class UserProcess {
 	private boolean load(String name, String[] args) {
 		Lib.debug(dbgProcess, "UserProcess.load(\"" + name + "\")");
 
-		OpenFile executable = ThreadedKernel.fileSystem.open(name, false);
+		OpenFile executable = ThreadedKernel.fileSystem.open(name, false); //true create false just open？
 		if (executable == null) {
 			Lib.debug(dbgProcess, "\topen failed");
 			return false;
@@ -342,6 +351,159 @@ public class UserProcess {
 		Lib.assertNotReached("Machine.halt() did not halt machine!");
 		return 0;
 	}
+	private int handleOpenCreate(int a0){
+
+		int fd = 0; // file descriptor
+		for (fd = 2; fd < 18; fd ++) {
+			if (!fileTable.containsKey(fd)) {
+				String fileName = readVirtualMemoryString(a0, maxFileNameLength);
+				if (fileName == null){
+					return -1;
+				}
+				OpenFile file = ThreadedKernel.fileSystem.open(fileName, true);
+				if (file == null){
+					return -1;
+				}
+				fileTable.put(fd, file);
+				fdTable.put(fileName, fd);
+				return fd;
+			}
+		}
+		return -1;
+
+		/**
+		 * Attempt to open/create the named file and return a file descriptor.
+		 *
+		 * Note that open() can only be used to open files on disk; open() will never
+		 * return a file descriptor referring to a stream.
+		 *
+		 * Returns the new file descriptor, or -1 if an error occurred.
+		 */
+	}
+
+	private int handleRead(int fd, int memVA, int count) {
+		byte[] localBuf = new byte[1024];
+		if (!fileTable.containsKey(fd))
+			return -1;
+		OpenFile file = fileTable.get(fd);
+		int actualCount;
+		//int totalRead = 0;
+		int readPos = 0;
+		int writePos = memVA;
+
+		do {
+			actualCount = file.read(readPos, localBuf, 0, 1024);
+			if (actualCount <= count) {
+				count -= actualCount;
+			} else {
+				actualCount = count;
+				count = 0;
+			}
+			readPos += actualCount;
+			writeVirtualMemory(writePos, localBuf, 0, actualCount);
+			//totalRead += actualCount;
+			writePos += actualCount;
+		}
+		while (actualCount == 1024);
+		return readPos;
+	}
+		//Use fileTable[fd].read() to read from file to a local buffer of limited size
+		///Then write it into the user inputted buffer
+		/**
+		 * Attempt to read up to count bytes into buffer from the file or stream
+		 * referred to by fileDescriptor.
+		 *
+		 * On success, the number of bytes read is returned. If the file descriptor
+		 * refers to a file on disk, the file position is advanced by this number.
+		 *
+		 * It is not necessarily an error if this number is smaller than the number of
+		 * bytes requested. If the file descriptor refers to a file on disk, this
+		 * indicates that the end of the file has been reached. If the file descriptor
+		 * refers to a stream, this indicates that the fewer bytes are actually
+		 * available right now than were requested, but more bytes may become available
+		 * in the future. Note that read() never waits for a stream to have more data;
+		 * it always returns as much as possible immediately.
+		 *
+		 * On error, -1 is returned, and the new file position is undefined. This can
+		 * happen if fileDescriptor is invalid, if part of the buffer is read-only or
+		 * invalid, or if a network stream has been terminated by the remote host and
+		 * no more data is available.
+		 */
+
+
+	private int handleWrite(int fd, int memVA, int count){
+		byte[] localBuf = new byte[1024];
+		if (!fileTable.containsKey(fd))
+			return -1;
+		OpenFile file = fileTable.get(fd);
+		int actualCount;
+		//int totalRead = 0;
+		int readPos = memVA;
+		int writePos = 0;
+
+		do {
+			actualCount = readVirtualMemory(readPos, localBuf, 0, 1024);
+			//actualCount = file.read(readPos, localBuf, 0, 1024);
+			if (actualCount <= count) {
+				count -= actualCount;
+			} else {
+				actualCount = count;
+				count = 0;
+			}
+			file.write(writePos, localBuf, 0, actualCount);
+			//writeVirtualMemory(writePos, localBuf, 0, actualCount);
+			//totalRead += actualCount;
+			readPos += actualCount;
+			writePos += actualCount;
+		}
+		while (actualCount == 1024);
+		if (writePos == count)
+			return writePos;
+		else
+			return -1;
+
+		/**
+		 * Attempt to write up to count bytes from buffer to the file or stream
+		 * referred to by fileDescriptor. write() can return before the bytes are
+		 * actually flushed to the file or stream. A write to a stream can block,
+		 * however, if kernel queues are temporarily full.
+		 *
+		 * On success, the number of bytes written is returned (zero indicates nothing
+		 * was written), and the file position is advanced by this number. It IS an
+		 * error if this number is smaller than the number of bytes requested. For
+		 * disk files, this indicates that the disk is full. For streams, this
+		 * indicates the stream was terminated by the remote host before all the data
+		 * was transferred.
+		 *
+		 * On error, -1 is returned, and the new file position is undefined. This can
+		 * happen if fileDescriptor is invalid, if part of the buffer is invalid, or
+		 * if a network stream has already been terminated by the remote host.
+		 */
+
+
+	}
+
+	private int handleClose(int fd){
+		OpenFile file = fileTable.get(fd);
+		file.close();
+
+		fileTable.remove(fd);
+		fdTable.values().remove(fd); //删掉fdTable里面的
+		return 0;
+	}
+
+	private int handleUnlink(int nameVR){
+		String fileName = readVirtualMemoryString(nameVR, maxFileNameLength);
+		if (fdTable.containsKey(fileName)) {
+			int fd = fdTable.get(fileName);
+			fileTable.remove(fd);
+			fdTable.remove(fileName);
+		}
+		if (ThreadedKernel.fileSystem.remove(fileName))
+			return 0;
+		else
+			return -1;
+	}
 
 	private static final int syscallHalt = 0, syscallExit = 1, syscallExec = 2,
 			syscallJoin = 3, syscallCreate = 4, syscallOpen = 5,
@@ -411,10 +573,22 @@ public class UserProcess {
 	 */
 	public int handleSyscall(int syscall, int a0, int a1, int a2, int a3) {
 		switch (syscall) {
-		case syscallHalt:
-			return handleHalt();
+			case syscallHalt:
+				return handleHalt();
+			case syscallCreate:
+				return handleOpenCreate(a0);
+			case syscallOpen:
+				return handleOpenCreate(a0);
+			case syscallRead:
+				return handleRead(a0, a1, a2);
+			case syscallWrite:
+				return handleWrite(a0, a1, a2);
+			case syscallClose:
+				return handleClose(a0);
+			case syscallUnlink:
+				return handleUnlink(a0);
 
-		default:
+			default:
 			Lib.debug(dbgProcess, "Unknown syscall " + syscall);
 			Lib.assertNotReached("Unknown system call!");
 		}
@@ -468,4 +642,10 @@ public class UserProcess {
 	private static final int pageSize = Processor.pageSize;
 
 	private static final char dbgProcess = 'a';
+
+	private Map<Integer, OpenFile> fileTable; //Open File Descriptor Table 16 + 2
+
+	private Map<String, Integer> fdTable; //File name to fd
+
+	int maxFileNameLength = 256;
 }

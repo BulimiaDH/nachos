@@ -1,0 +1,104 @@
+Monitor Bridge{
+
+cond_t northBlock, southBlock;
+
+int trunk, bicyleNorth, bicyleSouth, carNorth, carSouth;
+
+	
+	EnterNorthBound (enum vehicle_type){
+	    if (vehicle_type == TRUCK){
+			while !(trunk == 0 && bicyleNorth == 0 && bicyleSouth == 0 && carNorth == 0 && carSouth==0)
+				wait(northCarTrunkBlock);
+			trunk ++;
+		}
+		else if (vehicle_type == CAR){
+			while !(trunk == 0 && bicyleNorth == 0 && carNorth ==0)
+				wait(northCarTrunkBlock);
+			carNorth ++;
+		}
+		else if (vehicle_type == BICYCLE){
+			while !(trunk == 0 && carNorth ==0 && bicyleNorth < 2)
+				wait(northBicyleBlock);
+			bicyleNorth++;
+		}	
+	}
+
+	EnterSouthBound (enum vehicle_type){
+	    if (vehicle_type == TRUCK){
+			while !(trunk == 0 && bicyleNorth == 0 && bicyleSouth == 0 && carNorth == 0 && carSouth==0)
+				wait(southCarTrunkBlock);
+			trunk ++;
+		}
+		else if (vehicle_type == CAR){
+			while !(trunk == 0 && bicyleSouth == 0 && carSouth ==0)
+				wait(southCarTrunkBlock);
+			carSouth ++;
+		}
+		else if (vehicle_type == BICYCLE){
+			while !(trunk == 0 && carSouth ==0 && bicyleSouth < 2)
+				wait(southBicyleBlock);
+			bicyleSouth++;
+		}	
+	}
+	
+
+
+	ExitNorthBound (enum vehicle_type){
+		if (vehicle_type == TRUCK){
+			trunk --;
+			signal(northBicycleBlock);
+			signal(northBicycleBlock);
+			signal(southBicycleBlock);
+			signal(southBicycleBlock);
+			broadcast(northCarTrunkBlock);
+			broadcast(southCarTrunkBlock);
+		}
+		else if (vehicle_type == CAR){
+			carNorth --;
+			signal(northBicycleBlock);
+			signal(northBicycleBlock);
+			broadcast(northCarTrunkBlock);
+			if (trunk == 0 && carSouth ==0 && bicyleSouth ==0)
+				broadcast(southCarTrunkBlock);
+		}
+		else if (vehicle_type == BICYCLE){
+			bicyleNorth --;
+			signal(northBicycleBlock);
+			if (trunk == 0 && carNorth ==0 && bicyleNorth ==0){
+				broadcast(northCarTrunkBlock);
+				if (trunk == 0 && carSouth ==0 && bicyleSouth ==0)
+					broadcast(southCarTrunkBlock);
+			}
+			
+		}
+	}
+
+	ExitSouthBound (enum vehicle_type){
+		if (vehicle_type == TRUCK){
+			trunk --;
+			signal(northBicycleBlock);
+			signal(northBicycleBlock);
+			signal(southBicycleBlock);
+			signal(southBicycleBlock);
+			broadcast(northCarTrunkBlock);
+			broadcast(southCarTrunkBlock);
+		}
+		else if (vehicle_type == CAR){
+			carSouth --;
+			signal(southBicycleBlock);
+			signal(southBicycleBlock);
+			broadcast(southCarTrunkBlock);
+			if (trunk == 0 && carNorth ==0 && bicyleNorth ==0)
+				broadcast(northCarTrunkBlock);
+		}
+		else if (vehicle_type == BICYCLE){
+			bicyleNorth --;
+			signal(southBicycleBlock);
+			if (trunk == 0 && carSouth ==0 && bicyleSouth ==0){
+				broadcast(southCarTrunkBlock);
+				if (trunk == 0 && carNorth ==0 && bicyleNorth ==0)
+					broadcast(northCarTrunkBlock);
+			}	
+		}
+	}
+}
