@@ -1,3 +1,6 @@
 .DS_Store
 .vagrant
 sftp-config.json
+
+test/*.o
+test/*.a
