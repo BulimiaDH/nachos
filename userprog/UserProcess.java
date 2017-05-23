@@ -294,6 +294,11 @@ public class UserProcess {
 			return false;
 		}
 
+		pageTable = ((UserKernal) Kernal.kernal).allocatePages(numPages);
+		for (int i = 0; i < pageTable.length(); i++) {
+			pageTable[i].vpn = i;
+		}
+
 		// load sections
 		for (int s = 0; s < coff.getNumSections(); s++) {
 			CoffSection section = coff.getSection(s);
@@ -301,11 +306,18 @@ public class UserProcess {
 			Lib.debug(dbgProcess, "\tinitializing " + section.getName()
 					+ " section (" + section.getLength() + " pages)");
 
+
 			for (int i = 0; i < section.getLength(); i++) {
 				int vpn = section.getFirstVPN() + i;
 
-				// for now, just assume virtual addresses=physical addresses
-				section.loadPage(i, vpn);
+				if (section.isReadOnly()) {
+					pageTable[i].readOnly = true;
+				}
+
+				// loadPage into physical address given by pageTable
+				section.loadPage(i, pageTable[vpn].ppn);
+
+
 			}
 		}
 
@@ -316,6 +328,7 @@ public class UserProcess {
 	 * Release any resources allocated by <tt>loadSections()</tt>.
 	 */
 	protected void unloadSections() {
+		((UserKernal) Kernal.kernal).deallocatePages(pageTable);
 	}
 
 	/**

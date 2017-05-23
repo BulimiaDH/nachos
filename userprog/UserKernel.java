@@ -29,6 +29,14 @@ public class UserKernel extends ThreadedKernel {
 				exceptionHandler();
 			}
 		});
+
+		pageAlLock = new Lock(); // Init Lock
+
+		// Set the physical pages onto the linked list
+		for (int i = 0; i <= Machine.processor().getNumPhysPages()); i++ ) {
+			freePPT.add(new TranslationEntry(0, i, false, false, false, false));
+		}
+
 	}
 
 	/**
@@ -108,9 +116,50 @@ public class UserKernel extends ThreadedKernel {
 		super.terminate();
 	}
 
+	public TranslationEntry[] allocatePages(int numPages) {
+		TranslationEntry[] pageTable = null;
+
+		// Protect other processess from allocating pages
+		pageAlLock.acquire();
+
+		// Check if # free pages >= num pages
+		if (freePPT.size() >= numPages) {
+			pageTable = new TranslationEntry[numPages];
+			for (int i = 0; i < numPages; i++) {
+				TranslationEntry allocatedPage = freePPT.remove();
+				pageTable[i] = allocatedPage;
+				pageTable[i].valid = true;
+			}
+
+		}
+
+		pageAlLock.release();
+
+		return pageTable;
+
+
+	}
+
+	public void deallocatePages(TranslationEntry[] pageTable) {
+
+		pageAlLock.acquire();
+		
+		for (int i = 0; i < pageTable.length; i++) {
+			freePPT.add(pageTable[i]);
+			pageTable[i].valid = false;
+			pageTable[i].vpn = 0;
+		}
+		
+		pageAlLock.release();
+
+	}
 	/** Globally accessible reference to the synchronized console. */
 	public static SynchConsole console;
 
 	// dummy variables to make javac smarter
 	private static Coff dummy1 = null;
+
+	private LinkedList<TranslationEntry> freePPT = new LinkedList<TranslationEntry>();
+	
+	private Lock pageAlLock;
 }
