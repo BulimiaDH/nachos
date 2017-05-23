@@ -16,6 +16,21 @@
 int
 main()
 {
-    halt();
-    /* not reached */
+    char *fname = "write.out";
+    int fd = open (fname);
+    char *buffer;
+    printf ("reading %s into buffer...\n", fname);
+    int len = 10;
+    int r = read (fd, buffer, len);
+    if (r < 0) {
+        printf ("...failed (r = %d)\n", r);
+    } else if (r != len) {
+        printf ("...failed (expected to read %d bytes, but read %d)\n", len, r);
+        printf("the content of the read %s", buffer);
+    } else {
+        printf ("...success\n");
+        printf("the content of the read %s", buffer);
+    }
+    close(fd);
+    return;
 }
