@@ -294,8 +294,8 @@ public class UserProcess {
 			return false;
 		}
 
-		pageTable = ((UserKernal) Kernal.kernal).allocatePages(numPages);
-		for (int i = 0; i < pageTable.length(); i++) {
+		pageTable = ((UserKernel) Kernel.kernel).allocatePages(numPages);
+		for (int i = 0; i < pageTable.length; i++) {
 			pageTable[i].vpn = i;
 		}
 
@@ -328,7 +328,7 @@ public class UserProcess {
 	 * Release any resources allocated by <tt>loadSections()</tt>.
 	 */
 	protected void unloadSections() {
-		((UserKernal) Kernal.kernal).deallocatePages(pageTable);
+		((UserKernel) Kernel.kernel).deallocatePages(pageTable);
 	}
 
 	/**

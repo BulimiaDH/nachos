@@ -3,6 +3,7 @@ package nachos.userprog;
 import nachos.machine.*;
 import nachos.threads.*;
 import nachos.userprog.*;
+import java.util.LinkedList;
 
 /**
  * A kernel that can support multiple user processes.
@@ -33,7 +34,7 @@ public class UserKernel extends ThreadedKernel {
 		pageAlLock = new Lock(); // Init Lock
 
 		// Set the physical pages onto the linked list
-		for (int i = 0; i <= Machine.processor().getNumPhysPages()); i++ ) {
+		for (int i = 0; i <= Machine.processor().getNumPhysPages(); i++ ) {
 			freePPT.add(new TranslationEntry(0, i, false, false, false, false));
 		}
 
