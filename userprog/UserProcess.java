@@ -11,11 +11,11 @@ import java.io.EOFException;
  * Encapsulates the state of a user process that is not contained in its user
  * thread (or threads). This includes its address translation state, a file
  * table, and information about the program being executed.
- * 
+ *
  * <p>
  * This class is extended by other classes to support additional functionality
  * (such as additional syscalls).
- * 
+ *
  * @see nachos.vm.VMProcess
  * @see nachos.network.NetProcess
  */
@@ -34,7 +34,7 @@ public class UserProcess {
 		fdTable = new HashMap<String, Integer>();
 
 		fileTable.put(0, UserKernel.console.openForReading());
-		fileTable.put(1, UserKernel.console.openForReading());
+		fileTable.put(1, UserKernel.console.openForWriting());
 
 	}
 
@@ -42,7 +42,7 @@ public class UserProcess {
 	 * Allocate and return a new process of the correct class. The class name is
 	 * specified by the <tt>nachos.conf</tt> key
 	 * <tt>Kernel.processClassName</tt>.
-	 * 
+	 *
 	 * @return a new process of the correct class.
 	 */
 	public static UserProcess newUserProcess() {
@@ -52,7 +52,7 @@ public class UserProcess {
 	/**
 	 * Execute the specified program with the specified arguments. Attempts to
 	 * load the program, and then forks a thread to run it.
-	 * 
+	 *
 	 * @param name the name of the file containing the executable.
 	 * @param args the arguments to pass to the executable.
 	 * @return <tt>true</tt> if the program was successfully executed.
@@ -87,7 +87,7 @@ public class UserProcess {
 	 * the null terminator, and convert it to a <tt>java.lang.String</tt>,
 	 * without including the null terminator. If no null terminator is found,
 	 * returns <tt>null</tt>.
-	 * 
+	 *
 	 * @param vaddr the starting virtual address of the null-terminated string.
 	 * @param maxLength the maximum number of characters in the string, not
 	 * including the null terminator.
@@ -112,7 +112,7 @@ public class UserProcess {
 	/**
 	 * Transfer data from this process's virtual memory to all of the specified
 	 * array. Same as <tt>readVirtualMemory(vaddr, data, 0, data.length)</tt>.
-	 * 
+	 *
 	 * @param vaddr the first byte of virtual memory to read.
 	 * @param data the array where the data will be stored.
 	 * @return the number of bytes successfully transferred.
@@ -127,7 +127,7 @@ public class UserProcess {
 	 * <i>not</i> destroy the current process if an error occurs, but instead
 	 * should return the number of bytes successfully copied (or zero if no data
 	 * could be copied).
-	 * 
+	 *
 	 * @param vaddr the first byte of virtual memory to read.
 	 * @param data the array where the data will be stored.
 	 * @param offset the first byte to write in the array.
@@ -154,7 +154,7 @@ public class UserProcess {
 	/**
 	 * Transfer all data from the specified array to this process's virtual
 	 * memory. Same as <tt>writeVirtualMemory(vaddr, data, 0, data.length)</tt>.
-	 * 
+	 *
 	 * @param vaddr the first byte of virtual memory to write.
 	 * @param data the array containing the data to transfer.
 	 * @return the number of bytes successfully transferred.
@@ -169,7 +169,7 @@ public class UserProcess {
 	 * <i>not</i> destroy the current process if an error occurs, but instead
 	 * should return the number of bytes successfully copied (or zero if no data
 	 * could be copied).
-	 * 
+	 *
 	 * @param vaddr the first byte of virtual memory to write.
 	 * @param data the array containing the data to transfer.
 	 * @param offset the first byte to transfer from the array.
@@ -198,7 +198,7 @@ public class UserProcess {
 	 * prepare to pass it the specified arguments. Opens the executable, reads
 	 * its header information, and copies sections and arguments into this
 	 * process's virtual memory.
-	 * 
+	 *
 	 * @param name the name of the file containing the executable.
 	 * @param args the arguments to pass to the executable.
 	 * @return <tt>true</tt> if the executable was successfully loaded.
@@ -284,7 +284,7 @@ public class UserProcess {
 	 * Allocates memory for this process, and loads the COFF sections into
 	 * memory. If this returns successfully, the process will definitely be run
 	 * (this is the last step in process initialization that can fail).
-	 * 
+	 *
 	 * @return <tt>true</tt> if the sections were successfully loaded.
 	 */
 	protected boolean loadSections() {
@@ -364,13 +364,35 @@ public class UserProcess {
 		Lib.assertNotReached("Machine.halt() did not halt machine!");
 		return 0;
 	}
-	private int handleOpenCreate(int a0){
 
-		int fd = 0; // file descriptor
-		for (fd = 2; fd < 18; fd ++) {
+
+	private int handleOpen(int nameVA){
+		int fd; // file descriptor
+		for (fd = 2; fd < maxNumOpenFile; fd ++) {
 			if (!fileTable.containsKey(fd)) {
-				String fileName = readVirtualMemoryString(a0, maxFileNameLength);
-				if (fileName == null){
+				String fileName = readVirtualMemoryString(nameVA, maxFileNameLength);
+				if (fileName == null || fileName.length() > 256){
+					return -1;
+				}
+				OpenFile file = ThreadedKernel.fileSystem.open(fileName, false);
+				if (file == null){
+					return -1;
+				}
+				fileTable.put(fd, file);
+				fdTable.put(fileName, fd);
+				System.out.println(fileName + "is created/opened successfully. The fd is " + fd);
+				return fd;
+			}
+		}
+		return -1;
+	}
+
+	private int handleCreate(int nameVA){
+		int fd;
+		for (fd = 2; fd < maxNumOpenFile; fd ++) {
+			if (!fileTable.containsKey(fd)) {
+				String fileName = readVirtualMemoryString(nameVA, maxFileNameLength);
+				if (fileName == null || fileName.length() > 256){
 					return -1;
 				}
 				OpenFile file = ThreadedKernel.fileSystem.open(fileName, true);
@@ -379,48 +401,39 @@ public class UserProcess {
 				}
 				fileTable.put(fd, file);
 				fdTable.put(fileName, fd);
-				System.out.println("the fd is "+ fd);
+				System.out.println(fileName + "is created/opened successfully. The fd is " + fd);
 				return fd;
 			}
 		}
-
 		return -1;
-
-		/**
-		 * Attempt to open/create the named file and return a file descriptor.
-		 *
-		 * Note that open() can only be used to open files on disk; open() will never
-		 * return a file descriptor referring to a stream.
-		 *
-		 * Returns the new file descriptor, or -1 if an error occurred.
-		 */
 	}
 
 	private int handleRead(int fd, int memVA, int count) {
-		byte[] localBuf = new byte[1024];
+		byte[] localBuf = new byte[localBufferSize];
 		if (!fileTable.containsKey(fd))
 			return -1;
 		OpenFile file = fileTable.get(fd);
 		int actualCount;
-		//int totalRead = 0;
-		int readPos = 0;
+		int totalRead = 0;
 		int writePos = memVA;
 
 		do {
-			actualCount = file.read(readPos, localBuf, 0, 1024);
+			actualCount = file.read(localBuf, 0, localBufferSize);
+			if (actualCount == -1){
+				return -1;
+			}
 			if (actualCount <= count) {
 				count -= actualCount;
 			} else {
 				actualCount = count;
 				count = 0;
 			}
-			readPos += actualCount;
 			writeVirtualMemory(writePos, localBuf, 0, actualCount);
-			//totalRead += actualCount;
+			totalRead += actualCount;
 			writePos += actualCount;
 		}
-		while (actualCount == 1024);
-		return readPos;
+		while (actualCount == localBufferSize);
+		return totalRead;
 	}
 		//Use fileTable[fd].read() to read from file to a local buffer of limited size
 		///Then write it into the user inputted buffer
@@ -447,33 +460,40 @@ public class UserProcess {
 
 
 	private int handleWrite(int fd, int memVA, int count){
-		byte[] localBuf = new byte[1024];
+		byte[] localBuf = new byte[localBufferSize];
 		if (!fileTable.containsKey(fd))
 			return -1;
 		OpenFile file = fileTable.get(fd);
 		int actualCount;
-		//int totalRead = 0;
+		int totalWrite = 0;
 		int readPos = memVA;
-		int writePos = 0;
-
+		int leftToWrite = count;
 		do {
-			actualCount = readVirtualMemory(readPos, localBuf, 0, 1024);
-			//actualCount = file.read(readPos, localBuf, 0, 1024);
-			if (actualCount <= count) {
-				count -= actualCount;
+			actualCount = readVirtualMemory(readPos, localBuf, 0, localBufferSize);
+			if (actualCount <= leftToWrite) {
+				leftToWrite -= actualCount;
 			} else {
-				actualCount = count;
-				count = 0;
+				actualCount = leftToWrite;
+				leftToWrite = 0;
 			}
-			file.write(writePos, localBuf, 0, actualCount);
-			//writeVirtualMemory(writePos, localBuf, 0, actualCount);
-			//totalRead += actualCount;
+
+			if (file.write(localBuf, 0, actualCount) == -1)
+				return -1;
+			totalWrite += actualCount;
 			readPos += actualCount;
-			writePos += actualCount;
 		}
-		while (actualCount == 1024);
-		if (writePos == count)
-			return writePos;
+		while (actualCount == localBufferSize);
+		if (totalWrite == count) {
+			//System.out.println("UserProcess: The file" + fd + "is written successfully." + totalWrite + "words are written.");
+
+//			try {
+//				Thread.sleep(4000);
+//			} catch (InterruptedException e) {
+//				e.printStackTrace();
+//			}
+
+			return totalWrite;
+		}
 		else
 			return -1;
 
@@ -498,27 +518,115 @@ public class UserProcess {
 
 	}
 
-	private int handleClose(int fd){
-		OpenFile file = fileTable.get(fd);
-		file.close();
+	 private int handleClose(int fd){
+	 	OpenFile file = fileTable.get(fd);
+	 	file.close();
 
-		fileTable.remove(fd);
-		fdTable.values().remove(fd); //delete fdTable entry
-		return 0;
-	}
+	 	fileTable.remove(fd);
+	 	fdTable.values().remove(fd); //delete fdTable entry
+	 	System.out.println(fd + "is closed successfully.");
+	 	return 0;
+	 }
 
-	private int handleUnlink(int nameVR){
-		String fileName = readVirtualMemoryString(nameVR, maxFileNameLength);
-		if (fdTable.containsKey(fileName)) {
-			int fd = fdTable.get(fileName);
-			fileTable.remove(fd);
-			fdTable.remove(fileName);
-		}
-		if (ThreadedKernel.fileSystem.remove(fileName))
-			return 0;
-		else
-			return -1;
-	}
+	 private int handleUnlink(int fileNameVR){
+	 	String fileName = readVirtualMemoryString(fileNameVR, maxFileNameLength);
+	 	if (fdTable.containsKey(fileName)) {
+	 		int fd = fdTable.get(fileName);
+	 		fileTable.remove(fd);
+	 		fdTable.remove(fileName);
+	 	}
+	 	if (ThreadedKernel.fileSystem.remove(fileName))
+	 		return 0;
+	 	else
+	 		return -1;
+	 }
+
+
+	// private int handleExec(int fileNameVR, int argc, int argvVR){
+	// 	//The definition of EXEC in c: int exec(char *file, int argc, char *argv[]);
+
+	// 	//check fileName
+	// 	String fileName = readVirtualMemoryString(fileNameVR, maxFileNameLength);
+	// 	int lenFileName = fileName.length();
+	// 	if (lenFileName <= 5 || fileName.substring(lenFileName - 5,lenFileName)!= ".coff")
+	// 		return -1;
+	// 	//check argc
+	// 	if (argc < 0)
+	// 		return -1;
+	// 	//check argv
+	// 	String [] argv = new String[argc];
+	// 	int argcVRi = argcVR;
+	// 	for (int i = 0; i < argc; i++){
+	// 		// ??? no idea
+	// 		//argv[i] = readVirtualMemoryString(argcVRi, maxArgvLength);
+	// 		//argcVRi = ???
+	// 	}
+
+
+//		/**
+//		 * Execute the program stored in the specified file, with the specified
+//		 * arguments, in a new child process. The child process has a new unique
+//		 * process ID, and starts with stdin opened as file descriptor 0, and stdout
+//		 * opened as file descriptor 1.
+//		 *
+//		 * file is a null-terminated string that specifies the name of the file
+//		 * containing the executable. Note that this string must include the ".coff"
+//		 * extension.
+//		 *
+//		 * argc specifies the number of arguments to pass to the child process. This
+//		 * number must be non-negative.
+//		 *
+//		 * argv is an array of pointers to null-terminated strings that represent the
+//		 * arguments to pass to the child process. argv[0] points to the first
+//		 * argument, and argv[argc-1] points to the last argument.
+//		 *
+//		 * exec() returns the child process's process ID, which can be passed to
+//		 * join(). On error, returns -1.
+//		 */
+//
+//
+//	//}
+//	private int handleJoin(int processID, int statusVR){
+//		//int join(int processID, int *status);
+//		String status = readVirtualMemoryString(statusVR, maxStatusLength);
+//
+//
+//		/**
+//		 * Suspend execution of the current process until the child process specified
+//		 * by the processID argument has exited. If the child has already exited by the
+//		 * time of the call, returns immediately. When the current process resumes, it
+//		 * disowns the child process, so that join() cannot be used on that process
+//		 * again.
+//		 *
+//		 * processID is the process ID of the child process, returned by exec().
+//		 *
+//		 * status points to an integer where the exit status of the child process will
+//		 * be stored. This is the value the child passed to exit(). If the child exited
+//		 * because of an unhandled exception, the value stored is not defined.
+//		 *
+//		 * If the child exited normally, returns 1. If the child exited as a result of
+//		 * an unhandled exception, returns 0. If processID does not refer to a child
+//		 * process of the current process, returns -1.
+//		 */
+//
+//
+//	}
+//	private int handleExit(a0){
+//
+///**
+// * Terminate the current process immediately. Any open file descriptors
+// * belonging to the process are closed. Any children of the process no longer
+// * have a parent process.
+// *
+// * status is returned to the parent process as this process's exit status and
+// * can be collected using the join syscall. A process exiting normally should
+// * (but is not required to) set status to 0.
+// *
+// * exit() never returns.
+// */
+//		void exit(int status);
+//
+//	}
 
 	private static final int syscallHalt = 0, syscallExit = 1, syscallExec = 2,
 			syscallJoin = 3, syscallCreate = 4, syscallOpen = 5,
@@ -528,7 +636,7 @@ public class UserProcess {
 	/**
 	 * Handle a syscall exception. Called by <tt>handleException()</tt>. The
 	 * <i>syscall</i> argument identifies which syscall the user executed:
-	 * 
+	 *
 	 * <table>
 	 * <tr>
 	 * <td>syscall#</td>
@@ -578,7 +686,7 @@ public class UserProcess {
 	 * <td><tt>int  unlink(char *name);</tt></td>
 	 * </tr>
 	 * </table>
-	 * 
+	 *
 	 * @param syscall the syscall number.
 	 * @param a0 the first syscall argument.
 	 * @param a1 the second syscall argument.
@@ -591,9 +699,9 @@ public class UserProcess {
 			case syscallHalt:
 				return handleHalt();
 			case syscallCreate:
-				return handleOpenCreate(a0);
+				return handleCreate(a0);
 			case syscallOpen:
-				return handleOpenCreate(a0);
+				return handleOpen(a0);
 			case syscallRead:
 				return handleRead(a0, a1, a2);
 			case syscallWrite:
@@ -602,6 +710,14 @@ public class UserProcess {
 				return handleClose(a0);
 			case syscallUnlink:
 				return handleUnlink(a0);
+
+			// case syscallExec:
+			// 	return handleExec(a0, a1, a2);
+			// case syscallJoin:
+			// 	return handleJoin(a0, a1);
+			// case syscallExit:
+			// 	return handleExit(a0);
+
 
 			default:
 			Lib.debug(dbgProcess, "Unknown syscall " + syscall);
@@ -614,7 +730,7 @@ public class UserProcess {
 	 * Handle a user exception. Called by <tt>UserKernel.exceptionHandler()</tt>
 	 * . The <i>cause</i> argument identifies which exception occurred; see the
 	 * <tt>Processor.exceptionZZZ</tt> constants.
-	 * 
+	 *
 	 * @param cause the user exception that occurred.
 	 */
 	public void handleException(int cause) {
@@ -663,4 +779,8 @@ public class UserProcess {
 	private Map<String, Integer> fdTable; //File name to fd
 
 	int maxFileNameLength = 256;
+
+	int localBufferSize = 1024;
+
+	int maxNumOpenFile = 2 + 16;
 }

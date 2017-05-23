@@ -10,11 +10,10 @@
 
 #include "syscall.h"
 
-int
-main (int argc, char *argv[])
+int main (int argc, char *argv[])
 {
-    char *str = "\nroses are red\nviolets are blue\nI love Nachos\nand so do you\n\n";
 
+    char *str = "\nroses are red\nviolets are blue\nI love Nachos\nand so do you\n\n";
     while (*str) {
 	int r = write (1, str, 1);
 	if (r != 1) {

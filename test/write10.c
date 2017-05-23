@@ -2,6 +2,7 @@
  * write10.c
  *
  * Test the write system call under a variety of good and bad
+
  * conditions, verifying output where possible.  Requires basic
  * functionality for open, creat, close, and read.
  *
@@ -75,16 +76,16 @@ do_write (char *fname, char *buffer, int len, int stride)
     ptr = buffer, remain = len;
     printf ("writing %d bytes to file, %d bytes at a time...\n", len, stride);
     while (remain > 0) {
-	int n = ((remain < stride) ? remain : stride);
-	r = write (fd, ptr, n);
-	if (r < 0) {
-	    printf ("...failed (r = %d)\n", r);
-	    exit (-1004);
-	} else if (r != n) {
-	    printf ("...failed (expected to write %d bytes, but wrote %d)\n", n, r);
-	    exit (-1005);
-	} else {
-	    printf ("...passed (wrote %d bytes)\n", r);
+        int n = ((remain < stride) ? remain : stride);
+        r = write (fd, ptr, n);
+        if (r < 0) {
+            printf ("...failed (r = %d)\n", r);
+            exit (-1004);
+        } else if (r != n) {
+            printf ("...failed (expected to write %d bytes, but wrote %d)\n", n, r);
+            exit (-1005);
+        } else {
+            printf ("...passed (wrote %d bytes)\n", r);
 	}
 
 	ptr += stride;
@@ -111,30 +112,30 @@ do_validate (char *fname, char *buffer, char *truth, int len)
     printf ("reading %s into buffer...\n", fname);
     r = read (fd, buffer, len);
     if (r < 0) {
-	printf ("...failed (r = %d)\n", r);
-	do_close (fd);
-	return;
+        printf ("...failed (r = %d)\n", r);
+        do_close (fd);
+        return;
     } else if (r != len) {
-	printf ("...failed (expected to read %d bytes, but read %d)\n", len, r);
-	do_close (fd);
-	return;
+        printf ("...failed (expected to read %d bytes, but read %d)\n", len, r);
+        do_close (fd);
+        return;
     } else {
-	printf ("...success\n");
+	    printf ("...success\n");
     }
 
     r = 0;
     printf ("validating %s...\n", fname);
     while (r < len) {
-	if (buffer[r] != truth[r]) {
-	    printf ("...failed (offset %d: expected %c, read %c)\n",
-		    r, truth[r], buffer[r]);
-	    exit (-1006);
-	    break;
-	}
-	r++;
+        if (buffer[r] != truth[r]) {
+            printf ("...failed (offset %d: expected %c, read %c)\n",
+                r, truth[r], buffer[r]);
+            exit (-1006);
+            break;
+        }
+        r++;
     }
     if (r == len) {
-	printf ("...passed\n");
+	    printf ("...passed\n");
     }
 
     do_close (fd);
@@ -151,6 +152,18 @@ main ()
     file = "write.out";
     char *str = "roses are red\nviolets are blue\nI love Nachos\nand so do you\n";
     len = strlen (str);
+
+    int fd1 = open(file);
+    r = write (2, str, 10);
+    if (r != 10) {
+        printf ("fd1:failed to write character (r = %d)\n", r);
+        //exit (-1);
+    }
+    else{
+        printf ("fd1:succeed to write character (r = %d)\n", r);
+    }
+    printf(close(2));
+
 
     /* write all bytes at once */
     do_write (file, str, len, len);
@@ -170,7 +183,7 @@ main ()
     file = "binary.out";
     len = sizeof (bigbuf1);  /* len in units of bytes, bigbufnum in ints */
     for (i = 0; i < bigbufnum; i++) {
-	bigbuf1[i] = i;
+	    bigbuf1[i] = i;
     }
 
     /* write all at once */
@@ -189,20 +202,20 @@ main ()
     printf ("writing to an invalid fd (%d)...\n", fd);
     r = write (fd, buffer, len);
     if (r < 0) {
-	printf ("...passed (r = %d)\n", r);
+	    printf ("...passed (r = %d)\n", r);
     } else {
-	printf ("...failed (r = %d, should be -1)\n", r);
-	exit (-2000);
+        printf ("...failed (r = %d, should be -1)\n", r);
+        exit (-2000);
     }
 
     fd = 256, len = 10;  /* value of len should not matter... */
     printf ("writing to an invalid fd (%d)...\n", fd);
     r = write (fd, buffer, len);
     if (r < 0) {
-	printf ("...passed (r = %d)\n", r);
+	    printf ("...passed (r = %d)\n", r);
     } else {
-	printf ("...failed (r = %d, should be -1)\n", r);
-	exit (-3000);
+        printf ("...failed (r = %d, should be -1)\n", r);
+        exit (-3000);
     }
 
     fd = 8, len = 10;  /* value of len should not matter... */
