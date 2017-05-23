@@ -307,12 +307,12 @@ public class UserProcess {
 					+ " section (" + section.getLength() + " pages)");
 
 
+			if (section.isReadOnly()) {
+				pageTable[i].readOnly = true;
+			}
+
 			for (int i = 0; i < section.getLength(); i++) {
 				int vpn = section.getFirstVPN() + i;
-
-				if (section.isReadOnly()) {
-					pageTable[i].readOnly = true;
-				}
 
 				// loadPage into physical address given by pageTable
 				section.loadPage(i, pageTable[vpn].ppn);
