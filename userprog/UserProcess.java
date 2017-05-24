@@ -3,6 +3,9 @@ package nachos.userprog;
 import nachos.machine.*;
 import nachos.threads.*;
 import nachos.userprog.*;
+import nachos.vm.VMProcess;
+
+import java.nio.ByteBuffer;
 import java.util.*;
 
 import java.io.EOFException;
@@ -25,6 +28,11 @@ public class UserProcess {
 	 */
 	public UserProcess() {
 
+
+		pid = numProcess;
+		numProcess ++;
+
+
 		int numPhysPages = Machine.processor().getNumPhysPages();
 		pageTable = new TranslationEntry[numPhysPages];
 		for (int i = 0; i < numPhysPages; i++)
@@ -46,7 +54,21 @@ public class UserProcess {
 	 * @return a new process of the correct class.
 	 */
 	public static UserProcess newUserProcess() {
-		return (UserProcess) Lib.constructObject(Machine.getProcessClassName());
+		//return (UserProcess) Lib.constructObject(Machine.getProcessClassName());
+
+		String name = Machine.getProcessClassName();
+		// If Lib.constructObject is used, it quickly runs out
+		// of file descriptors and throws an exception in
+		// createClassLoader.  Hack around it by hard-coding
+		// creating new processes of the appropriate type.
+
+		if (name.equals("nachos.userprog.UserProcess")) {
+			return new UserProcess();
+		} else if (name.equals("nachos.vm.VMProcess")) {
+			return new VMProcess();
+		} else {
+			return (UserProcess) Lib.constructObject(Machine.getProcessClassName());
+		}
 	}
 
 	/**
@@ -61,7 +83,8 @@ public class UserProcess {
 		if (!load(name, args))
 			return false;
 
-		new UThread(this).setName(name).fork();
+		uThread = new UThread(this);
+		uThread.setName(name).fork();
 
 		return true;
 	}
@@ -308,7 +331,7 @@ public class UserProcess {
 
 
 			if (section.isReadOnly()) {
-				pageTable[i].readOnly = true;
+				pageTable[s].readOnly = true;
 			}
 
 			for (int i = 0; i < section.getLength(); i++) {
@@ -358,8 +381,10 @@ public class UserProcess {
 	 * Handle the halt() system call.
 	 */
 	private int handleHalt() {
-
-		Machine.halt();
+		//Extend the implementation of the halt system call so that it can only be invoked by the "root" process — that is,
+		// the first process in the system. If another process attempts to invoke halt, the system call should be ignored and return immediately.
+		if (pid == 0)
+			Machine.halt();
 
 		Lib.assertNotReached("Machine.halt() did not halt machine!");
 		return 0;
@@ -540,93 +565,156 @@ public class UserProcess {
 	 	else
 	 		return -1;
 	 }
+	 public void setPid(int pid){
+	 	this.pid = pid;
+	 }
+	 public void setPPid(int pPid){
+	 	this.pPid = pPid;
+	 }
+	 public void addChildProcess(int cpid){
+		cPids.add(cpid);
+	 }
 
+	/**
+	 * Execute the program stored in the specified file, with the specified
+	 * arguments, in a new child process. The child process has a new unique
+	 * process ID, and starts with stdin opened as file descriptor 0, and stdout
+	 * opened as file descriptor 1.
+	 *
+	 * exec() returns the child process's process ID, which can be passed to
+	 * join(). On error, returns -1.
+	 */
+	 private int handleExec(int fileNameVR, int argc, int argvVR){
+		//The definition of EXEC in c: int exec(char *file, int argc, char *argv[]);
 
-	// private int handleExec(int fileNameVR, int argc, int argvVR){
-	// 	//The definition of EXEC in c: int exec(char *file, int argc, char *argv[]);
+		//check fileName
+		String fileName = readVirtualMemoryString(fileNameVR, maxFileNameLength);
+		if (fileName == null)
+			return -1;
+		int lenFileName = fileName.length();
+		System.out.println("the file name end with" + fileName.substring(lenFileName - 5,lenFileName));
+		System.out.println("file name matched with .coff" + fileName.substring(lenFileName - 5,lenFileName).equals(".coff"));
+		if (lenFileName <= 5 || !fileName.substring(lenFileName - 5,lenFileName).equals(".coff"))
+			return -1;
 
-	// 	//check fileName
-	// 	String fileName = readVirtualMemoryString(fileNameVR, maxFileNameLength);
-	// 	int lenFileName = fileName.length();
-	// 	if (lenFileName <= 5 || fileName.substring(lenFileName - 5,lenFileName)!= ".coff")
-	// 		return -1;
-	// 	//check argc
-	// 	if (argc < 0)
-	// 		return -1;
-	// 	//check argv
-	// 	String [] argv = new String[argc];
-	// 	int argcVRi = argcVR;
-	// 	for (int i = 0; i < argc; i++){
-	// 		// ??? no idea
-	// 		//argv[i] = readVirtualMemoryString(argcVRi, maxArgvLength);
-	// 		//argcVRi = ???
-	// 	}
+		//check argc
+		if (argc < 0)
+			return -1;
+		 String [] argv;
+		//check argv
+		 if (argc == 0)
+			argv = null;
+		 else
+		 	 argv = new String[argc];
+		int argvVRi;
+		for (int i = 0; i < argc; i++){
+			argvVRi = argvVR + 4*i;
+			argv[i] = readVirtualMemoryString(argvVRi, maxArgvLength);
+		}
 
+		System.out.println("the arguments are:"+ argv + argc + "in total");
 
-//		/**
-//		 * Execute the program stored in the specified file, with the specified
-//		 * arguments, in a new child process. The child process has a new unique
-//		 * process ID, and starts with stdin opened as file descriptor 0, and stdout
-//		 * opened as file descriptor 1.
-//		 *
-//		 * file is a null-terminated string that specifies the name of the file
-//		 * containing the executable. Note that this string must include the ".coff"
-//		 * extension.
-//		 *
-//		 * argc specifies the number of arguments to pass to the child process. This
-//		 * number must be non-negative.
-//		 *
-//		 * argv is an array of pointers to null-terminated strings that represent the
-//		 * arguments to pass to the child process. argv[0] points to the first
-//		 * argument, and argv[argc-1] points to the last argument.
-//		 *
-//		 * exec() returns the child process's process ID, which can be passed to
-//		 * join(). On error, returns -1.
-//		 */
-//
-//
-//	//}
-//	private int handleJoin(int processID, int statusVR){
-//		//int join(int processID, int *status);
-//		String status = readVirtualMemoryString(statusVR, maxStatusLength);
-//
-//
-//		/**
-//		 * Suspend execution of the current process until the child process specified
-//		 * by the processID argument has exited. If the child has already exited by the
-//		 * time of the call, returns immediately. When the current process resumes, it
-//		 * disowns the child process, so that join() cannot be used on that process
-//		 * again.
-//		 *
-//		 * processID is the process ID of the child process, returned by exec().
-//		 *
-//		 * status points to an integer where the exit status of the child process will
-//		 * be stored. This is the value the child passed to exit(). If the child exited
-//		 * because of an unhandled exception, the value stored is not defined.
-//		 *
-//		 * If the child exited normally, returns 1. If the child exited as a result of
-//		 * an unhandled exception, returns 0. If processID does not refer to a child
-//		 * process of the current process, returns -1.
-//		 */
-//
-//
-//	}
-//	private int handleExit(a0){
-//
-///**
-// * Terminate the current process immediately. Any open file descriptors
-// * belonging to the process are closed. Any children of the process no longer
-// * have a parent process.
-// *
-// * status is returned to the parent process as this process's exit status and
-// * can be collected using the join syscall. A process exiting normally should
-// * (but is not required to) set status to 0.
-// *
-// * exit() never returns.
-// */
-//		void exit(int status);
-//
-//	}
+		 UserProcess process = newUserProcess();
+
+         int cPid = process.pid;
+		 pidTable.put(cPid, process);
+		 process.setPid(cPid);
+		 process.setPPid(pid);
+		 addChildProcess(cPid);
+
+		 Lib.assertTrue(process.execute(fileName, argv));
+
+		 //KThread.currentThread().finish();
+		 return cPid;
+ 	}
+
+	/**
+	 * Suspend execution of the current process until the child process specified
+	 * by the processID argument has exited. If the child has already exited by the
+	 * time of the call, returns immediately. When the current process resumes, it
+	 * disowns the child process, so that join() cannot be used on that process
+	 * again.
+	 *
+	 * status points to an integer where the exit status of the child process will
+	 * be stored. This is the value the child passed to exit(). If the child exited
+	 * because of an unhandled exception, the value stored is not defined.
+	 *
+	 * If the child exited normally, returns 1. If the child exited as a result of
+	 * an unhandled exception, returns 0. If processID does not refer to a child
+	 * process of the current process, returns -1.
+	 */
+	private int handleJoin(int cPid, int statusVR){
+		//int join(int pid, int *status);
+
+		//If processID does not refer to a child  process of the current process, returns -1.
+		if (!cPids.contains(cPid) || !pidTable.containsKey(cPid))
+			return -1;
+
+		System.out.println("Join");
+		pidTable.get(cPid).uThread.join();
+
+		//Get child status and write it to *status
+		String statusStr = pidTable.get(cPid).exitStatus;
+
+		//If the child exited as a result of an unhandled exception, returns 0.
+		if (statusStr == null)
+			return 0;
+
+		byte [] status = statusStr.getBytes();
+		System.out.println("The status of the child" + status + statusStr);
+		// not sure the length of the status
+		writeVirtualMemory(statusVR, status);
+
+		//If the child exited normally, returns 1.
+		if (statusStr == "0")
+			return 1;
+
+		return -1;
+	}
+	/**
+	 * Terminate the current process immediately.
+	 *
+	 * status is returned to the parent process as this process's exit status and
+	 * can be collected using the join syscall. A process exiting normally should
+	 * (but is not required to) set status to 0.
+	 *
+	 * exit() never returns.
+	 */
+	private int handleExit(int status){
+//		void exit(int status)
+		fileTable.clear();
+		fdTable.clear();
+
+		System.out.println("Total key value pairs in HashMap after cleanning are : " + fileTable.size() + fdTable.size());
+
+		unloadSections();
+		coff.close();
+
+		if (pPid != 0)
+			//save the status for parent;
+		exitStatus = "" + status;
+		System.out.println(exitStatus);
+		System.out.println("The status"+ exitStatus + status);
+		//What I recommend doing is checking if the status of the child is null or not (null indicates abnormal exit,
+		// else it is the value of the status the child passed in when calling exit).
+		// This requires the child knowing whether it is exiting normally or abnormally when calling exit().
+
+		// Any children of the process no longer have a parent process.
+		for (int cPid : cPids)
+			pidTable.get(cPid).setPPid(0);
+
+		//In case of last process, call kernel.kernel.terminate()
+		pidTable.remove(pid);
+		if (pidTable.size() == 0)
+			Kernel.kernel.terminate();
+
+		//Wake up parent if sleeping
+		uThread.finish();
+		//Close Kthread by calling Kthread.finish()
+		KThread.finish();
+		exitStatus = null;
+		return -1;
+	}
 
 	private static final int syscallHalt = 0, syscallExit = 1, syscallExec = 2,
 			syscallJoin = 3, syscallCreate = 4, syscallOpen = 5,
@@ -711,12 +799,12 @@ public class UserProcess {
 			case syscallUnlink:
 				return handleUnlink(a0);
 
-			// case syscallExec:
-			// 	return handleExec(a0, a1, a2);
-			// case syscallJoin:
-			// 	return handleJoin(a0, a1);
-			// case syscallExit:
-			// 	return handleExit(a0);
+			 case syscallExec:
+			 	return handleExec(a0, a1, a2);
+			 case syscallJoin:
+			 	return handleJoin(a0, a1);
+			 case syscallExit:
+			 	return handleExit(a0);
 
 
 			default:
@@ -783,4 +871,27 @@ public class UserProcess {
 	int localBufferSize = 1024;
 
 	int maxNumOpenFile = 2 + 16;
+
+	int maxArgvLength = 4;
+
+	int maxStatusLength = 1;
+
+	private static int numProcess = 1;
+
+	int pid;
+
+	int pPid = 0;
+
+	LinkedList<Integer>	cPids = new LinkedList<>();
+
+	private Map<Integer, UserProcess> pidTable = new HashMap<>(); //pid -> Process
+
+	private Lock cLock = new Lock();
+
+	private Condition waitingOnMeToFinish = new Condition(cLock);
+
+	UThread uThread;
+
+	String exitStatus;
+
 }
