@@ -671,8 +671,11 @@ public class UserProcess {
 
 		return -1;
 	}
+
 	/**
-	 * Terminate the current process immediately.
+	 * Terminate the current process immediately. Any open file descriptors
+	 * belonging to the process are closed. Any children of the process no longer
+	 * have a parent process.
 	 *
 	 * status is returned to the parent process as this process's exit status and
 	 * can be collected using the join syscall. A process exiting normally should
