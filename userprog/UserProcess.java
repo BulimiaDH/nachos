@@ -141,12 +141,30 @@ public class UserProcess {
 
 		byte[] memory = Machine.processor().getMemory();
 
-		// for now, just assume that virtual addresses equal physical addresses
-		if (vaddr < 0 || vaddr >= memory.length)
+		int firstVPN = Processor.pageFromAddress(vaddr), firstOffset = Processor
+				.offsetFromAddress(vaddr), lastVPN = Processor
+				.pageFromAddress(vaddr + length);
+
+		TranslationEntry entry = getTranslationEntry(firstVPN, false);
+
+		if (entry == null)
 			return 0;
 
-		int amount = Math.min(length, memory.length - vaddr);
-		System.arraycopy(memory, vaddr, data, offset, amount);
+		int amount = Math.min(length, pageSize - firstOffset);
+		System.arraycopy(memory, Processor.makeAddress(entry.ppn, firstOffset),
+				data, offset, amount);
+		offset += amount;
+
+		for (int i = firstVPN + 1; i <= lastVPN; i++) {
+			entry = getTranslationEntry(i, false);
+			if (entry == null)
+				return amount;
+			int len = Math.min(length - amount, pageSize);
+			System.arraycopy(memory, Processor.makeAddress(entry.ppn, 0), data,
+					offset, len);
+			offset += len;
+			amount += len;
+		}
 
 		return amount;
 	}
@@ -183,15 +201,34 @@ public class UserProcess {
 
 		byte[] memory = Machine.processor().getMemory();
 
-		// for now, just assume that virtual addresses equal physical addresses
-		if (vaddr < 0 || vaddr >= memory.length)
+		int firstVPN = Processor.pageFromAddress(vaddr), firstOffset = Processor
+				.offsetFromAddress(vaddr), lastVPN = Processor
+				.pageFromAddress(vaddr + length);
+
+		TranslationEntry entry = getTranslationEntry(firstVPN, true);
+
+		if (entry == null)
 			return 0;
 
-		int amount = Math.min(length, memory.length - vaddr);
-		System.arraycopy(data, offset, memory, vaddr, amount);
+		int amount = Math.min(length, pageSize - firstOffset);
+		System.arraycopy(data, offset, memory, Processor.makeAddress(entry.ppn,
+				firstOffset), amount);
+		offset += amount;
+
+		for (int i = firstVPN + 1; i <= lastVPN; i++) {
+			entry = getTranslationEntry(i, true);
+			if (entry == null)
+				return amount;
+			int len = Math.min(length - amount, pageSize);
+			System.arraycopy(data, offset, memory, Processor.makeAddress(
+					entry.ppn, 0), len);
+			offset += len;
+			amount += len;
+		}
 
 		return amount;
 	}
+
 
 	/**
 	 * Load the executable with the specified name into this process, and
@@ -308,7 +345,7 @@ public class UserProcess {
 
 
 			if (section.isReadOnly()) {
-				pageTable[i].readOnly = true;
+				pageTable[s].readOnly = true;
 			}
 
 			for (int i = 0; i < section.getLength(); i++) {
