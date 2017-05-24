@@ -164,11 +164,11 @@ public class UserProcess {
 
 		byte[] memory = Machine.processor().getMemory();
 
-		int firstVPN = Processor.pageFromAddress(vaddr), firstOffset = Processor
-				.offsetFromAddress(vaddr), lastVPN = Processor
-				.pageFromAddress(vaddr + length);
+		int firstVPN = Processor.pageFromAddress(vaddr)
+		int firstOffset = Processor.offsetFromAddress(vaddr)
+		int lastVPN = Processor.pageFromAddress(vaddr + length);
 
-		TranslationEntry entry = getTranslationEntry(firstVPN, false);
+		TranslationEntry entry = getTranslationEntry(firstVPN);
 
 		if (entry == null)
 			return 0;
@@ -179,7 +179,7 @@ public class UserProcess {
 		offset += amount;
 
 		for (int i = firstVPN + 1; i <= lastVPN; i++) {
-			entry = getTranslationEntry(i, false);
+			entry = getTranslationEntry(i);
 			if (entry == null)
 				return amount;
 			int len = Math.min(length - amount, pageSize);
@@ -224,11 +224,11 @@ public class UserProcess {
 
 		byte[] memory = Machine.processor().getMemory();
 
-		int firstVPN = Processor.pageFromAddress(vaddr), firstOffset = Processor
-				.offsetFromAddress(vaddr), lastVPN = Processor
-				.pageFromAddress(vaddr + length);
+		int firstVPN = Processor.pageFromAddress(vaddr)
+		int firstOffset = Processor.offsetFromAddress(vaddr)
+		int lastVPN = Processor.pageFromAddress(vaddr + length);
 
-		TranslationEntry entry = getTranslationEntry(firstVPN, true);
+		TranslationEntry entry = getTranslationEntry(firstVPN);
 
 		if (entry == null)
 			return 0;
@@ -239,7 +239,7 @@ public class UserProcess {
 		offset += amount;
 
 		for (int i = firstVPN + 1; i <= lastVPN; i++) {
-			entry = getTranslationEntry(i, true);
+			entry = getTranslationEntry(i);
 			if (entry == null)
 				return amount;
 			int len = Math.min(length - amount, pageSize);
@@ -252,6 +252,9 @@ public class UserProcess {
 		return amount;
 	}
 
+	public getTranslationEntry(int vpn) {
+		return pageTable[vpn];
+	}
 
 	/**
 	 * Load the executable with the specified name into this process, and
