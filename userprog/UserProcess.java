@@ -164,11 +164,19 @@ public class UserProcess {
 
 		byte[] memory = Machine.processor().getMemory();
 
-		int firstVPN = Processor.pageFromAddress(vaddr)
-		int firstOffset = Processor.offsetFromAddress(vaddr)
+		int firstVPN = Processor.pageFromAddress(vaddr);
+		int firstOffset = Processor.offsetFromAddress(vaddr);
 		int lastVPN = Processor.pageFromAddress(vaddr + length);
 
-		TranslationEntry entry = getTranslationEntry(firstVPN);
+        TranslationEntry entry = null;
+
+		try {
+			entry = getTranslationEntry(firstVPN);
+		}
+		catch(ArrayIndexOutOfBoundsException e) {
+		    System.out.println("IndexOutOfBoundsException: " + e.getMessage());
+        }
+
 
 		if (entry == null)
 			return 0;
@@ -224,8 +232,8 @@ public class UserProcess {
 
 		byte[] memory = Machine.processor().getMemory();
 
-		int firstVPN = Processor.pageFromAddress(vaddr)
-		int firstOffset = Processor.offsetFromAddress(vaddr)
+		int firstVPN = Processor.pageFromAddress(vaddr);
+		int firstOffset = Processor.offsetFromAddress(vaddr);
 		int lastVPN = Processor.pageFromAddress(vaddr + length);
 
 		TranslationEntry entry = getTranslationEntry(firstVPN);
@@ -252,8 +260,9 @@ public class UserProcess {
 		return amount;
 	}
 
-	public getTranslationEntry(int vpn) {
-		return pageTable[vpn];
+	public TranslationEntry getTranslationEntry(int vpn) {
+        System.out.println("vpn:" +pageTable[vpn].vpn + "--> ppn:" + pageTable[vpn].ppn);
+        return pageTable[vpn];
 	}
 
 	/**
@@ -643,7 +652,7 @@ public class UserProcess {
 		 String [] argv;
 		//check argv
 		 if (argc == 0)
-			argv = null;
+			argv = new String[0];
 		 else
 		 	 argv = new String[argc];
 		int argvVRi;
