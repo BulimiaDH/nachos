@@ -13,22 +13,24 @@
 int main (int argc, char *argv[])
 {
 
-        int fd1 = open("test_doc");
-        int fd3 = open("test2_doc");
-        int fd2 = creat("test1_doc"); // the file is already exist when create?
+    int fd2 = open("test_doc");
+    int fd4 = open("test2_doc");
+    int fd5 = creat("test1_doc"); // the file is already exist when create?
 
     char *str = "\nroses are red\nviolets are blue\nI love Nachos\nand so do you\n\n";
 
-    int r = write (2, str, 10);
-    if (r != 10) {
-        printf ("fd1:failed to write character (r = %d)\n", r);
-        //exit (-1);
-    }
-    else{
-        printf ("fd1:succeed to write character (r = %d)\n", r);
-    }
-    
-    r = read(2, str, 10);
+//    int r = write (2, str, 10);
+//    if (r != 10) {
+//        printf ("fd1:failed to write character (r = %d)\n", r);
+//        //exit (-1);
+//    }
+//    else{
+//        printf ("fd1:succeed to write character (r = %d)\n", r);
+//    }
+//    close(2);
+
+    int r = read(2, str, 10);
+    printf("what i read from test_doc %s\n", str);
     if (r != 10) {
         printf ("fd1:failed to read character (r = %d)\n", r);
         //exit (-1);
@@ -38,9 +40,9 @@ int main (int argc, char *argv[])
     }
 
 
-    int fd4 = close(2);
-    int fd5 = close(3);
-    int fd6 = close(4);
+    close(2);
+    close(3);
+    close(4);
 
 //    while (*str) {
 //	int r = write (1, str, 1);
