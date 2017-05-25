@@ -164,32 +164,42 @@ public class UserProcess {
 
 		byte[] memory = Machine.processor().getMemory();
 
-		int firstVPN = Processor.pageFromAddress(vaddr);
-		int firstOffset = Processor.offsetFromAddress(vaddr);
-		int lastVPN = Processor.pageFromAddress(vaddr + length);
+		int vpn = Processor.pageFromAddress(vaddr);
+		int vpnOffset = Processor.offsetFromAddress(vaddr);
+		int lastVpn = Processor.pageFromAddress(vaddr + length);
 
         TranslationEntry entry = null;
 
 		try {
-			entry = getTranslationEntry(firstVPN);
+			entry = getTranslationEntry(vpn);
+			entry.used = true;
 		}
 		catch(ArrayIndexOutOfBoundsException e) {
 		    System.out.println("IndexOutOfBoundsException: " + e.getMessage());
+		    return 0;
         }
-
 
 		if (entry == null)
 			return 0;
 
-		int amount = Math.min(length, pageSize - firstOffset);
-		System.arraycopy(memory, Processor.makeAddress(entry.ppn, firstOffset),
+		int amount = Math.min(length, pageSize - vpnOffset);
+		System.arraycopy(memory, Processor.makeAddress(entry.ppn, vpnOffset),
 				data, offset, amount);
 		offset += amount;
 
-		for (int i = firstVPN + 1; i <= lastVPN; i++) {
-			entry = getTranslationEntry(i);
+		for (int i = vpn + 1; i <= lastVpn; i++) {
+
+			try {
+				entry = getTranslationEntry(vpn);
+			}
+			catch(ArrayIndexOutOfBoundsException e) {
+				System.out.println("IndexOutOfBoundsException: " + e.getMessage());
+				return amount;
+			}
+
 			if (entry == null)
 				return amount;
+
 			int len = Math.min(length - amount, pageSize);
 			System.arraycopy(memory, Processor.makeAddress(entry.ppn, 0), data,
 					offset, len);
@@ -232,11 +242,11 @@ public class UserProcess {
 
 		byte[] memory = Machine.processor().getMemory();
 
-		int firstVPN = Processor.pageFromAddress(vaddr);
-		int firstOffset = Processor.offsetFromAddress(vaddr);
-		int lastVPN = Processor.pageFromAddress(vaddr + length);
+		int vpn = Processor.pageFromAddress(vaddr);
+		int vpnOffset = Processor.offsetFromAddress(vaddr);
+		int lastVpn = Processor.pageFromAddress(vaddr + length);
 
-		TranslationEntry entry = pageTable[firstVPN];
+		TranslationEntry entry = pageTable[vpn];
 
 		if (entry == null) return 0;
 
@@ -244,13 +254,13 @@ public class UserProcess {
 
 		entry.used = true;
 
-		int amount = Math.min(length, pageSize - firstOffset);
+		int amount = Math.min(length, pageSize - vpnOffset);
 		System.arraycopy(data, offset, memory, Processor.makeAddress(entry.ppn,
-				firstOffset), amount);
+				vpnOffset), amount);
 		offset += amount;
 
-		for (int i = firstVPN + 1; i <= lastVPN; i++) {
-			entry = getTranslationEntry(i);
+		for (int i = vpn + 1; i <= lastVpn; i++) {
+			entry = pageTable[vpn];
 			if (entry == null)
 				return amount;
 			int len = Math.min(length - amount, pageSize);
