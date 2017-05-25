@@ -162,11 +162,12 @@ public class UserProcess {
 		Lib.assertTrue(offset >= 0 && length >= 0
 				&& offset + length <= data.length);
 
+		if (data == null) return 0;
+
 		byte[] memory = Machine.processor().getMemory();
 
 		int vpn = Processor.pageFromAddress(vaddr);
 		int vpnOffset = Processor.offsetFromAddress(vaddr);
-		int lastVpn = Processor.pageFromAddress(vaddr + length);
 
         TranslationEntry entry = null;
 
@@ -179,34 +180,61 @@ public class UserProcess {
 		    return 0;
         }
 
+        // Initial address in memory
+		int address = entry.ppn * pageSize + vpnOffset;
+
 		if (entry == null)
 			return 0;
 
-		int amount = Math.min(length, pageSize - vpnOffset);
-		System.arraycopy(memory, Processor.makeAddress(entry.ppn, vpnOffset),
-				data, offset, amount);
-		offset += amount;
+		int amount = 0;
+		int bufOffset = offset;
+		int pageOffset = vpnOffset;
+		int currAddr = address;
+		int bytesToWrite = length;
+		int currVpn = vpn;
 
-		for (int i = vpn + 1; i <= lastVpn; i++) {
+		while (amount < length)
+		{
+			// The data we wish to write will extend off the size of the page
+			if (pageOffset + bytesToWrite > pageSize)
+			{
+				// Need to save the context of all data to account for the next page on the table
+				int amountToWrite = pageSize - pageOffset;
 
-			try {
-				entry = getTranslationEntry(vpn);
+				// Read all the way to the end of the page table
+				System.arraycopy(memory, currAddr, data, offset, amountToWrite);
+
+				// Update the data for the next page
+				amount = amount + amountToWrite;
+				bufOffset = bufOffset + amountToWrite; // Where to start in the buffer
+				bytesToWrite = length - amount;
+				currVpn = currVpn + 1; // GO to next page table
+
+				if (currVpn >= pageTable.length) break;
+
+				else {
+
+					// Set to un-used
+					pageTable[currVpn - 1].used = false;
+					TranslationEntry currEntry = pageTable[currVpn];
+					if (!currEntry.valid)
+						break;
+
+					currEntry.used = true;
+					pageOffset = 0;
+					entry.ppn = currEntry.ppn;
+					currAddr = entry.ppn * pageSize;
+				}
 			}
-			catch(ArrayIndexOutOfBoundsException e) {
-				System.out.println("IndexOutOfBoundsException: " + e.getMessage());
-				return amount;
+			else
+			{
+				System.arraycopy(memory, currAddr, data, bufOffset, bytesToWrite);
+				amount += bytesToWrite; // written should now equal length
+				bufOffset += bytesToWrite;
 			}
 
-			if (entry == null)
-				return amount;
-
-			int len = Math.min(length - amount, pageSize);
-			System.arraycopy(memory, Processor.makeAddress(entry.ppn, 0), data,
-					offset, len);
-			offset += len;
-			amount += len;
 		}
-
+		pageTable[currVpn].used = false;
 		return amount;
 	}
 
