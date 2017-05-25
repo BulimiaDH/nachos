@@ -236,10 +236,13 @@ public class UserProcess {
 		int firstOffset = Processor.offsetFromAddress(vaddr);
 		int lastVPN = Processor.pageFromAddress(vaddr + length);
 
-		TranslationEntry entry = getTranslationEntry(firstVPN);
+		TranslationEntry entry = pageTable[firstVPN];
 
-		if (entry == null)
-			return 0;
+		if (entry == null) return 0;
+
+		if (entry.readOnly) return 0;
+
+		entry.used = true;
 
 		int amount = Math.min(length, pageSize - firstOffset);
 		System.arraycopy(data, offset, memory, Processor.makeAddress(entry.ppn,
@@ -537,6 +540,10 @@ public class UserProcess {
 		byte[] localBuf = new byte[localBufferSize];
 		if (!fileTable.containsKey(fd))
 			return -1;
+		if (count < 0)
+		    return -1;
+		if (count == 0)
+		    return 0;
 		OpenFile file = fileTable.get(fd);
 		int actualCount;
 		int totalWrite = 0;
@@ -703,20 +710,20 @@ public class UserProcess {
 		pidTable.get(cPid).uThread.join();
 
 		//Get child status and write it to *status
-		String statusStr = pidTable.get(cPid).exitStatus;
+		int status = pidTable.get(cPid).exitStatus;
 
-		//If the child exited as a result of an unhandled exception, returns 0.
-		if (statusStr == null)
-			return 0;
-
-		byte [] status = statusStr.getBytes();
-		System.out.println("The status of the child" + status + statusStr);
+		byte [] statusByteArr = ByteBuffer.allocate(4).putInt(status).array();
+		System.out.println("The status of the child" + status + statusByteArr);
 		// not sure the length of the status
-		writeVirtualMemory(statusVR, status);
+		writeVirtualMemory(statusVR, statusByteArr);
 
 		//If the child exited normally, returns 1.
-		if (statusStr == "0")
+		if (status == 0)
 			return 1;
+
+        //If the child exited as a result of an unhandled exception, returns 0.
+        if (status != 0)
+            return 0;
 
 		return -1;
 	}
@@ -743,10 +750,9 @@ public class UserProcess {
 		coff.close();
 
 		if (pPid != 0)
-			//save the status for parent;
-		exitStatus = "" + status;
-		System.out.println(exitStatus);
-		System.out.println("The status"+ exitStatus + status);
+		    //save the status for parent;
+		exitStatus = status;
+		System.out.println("The status"+ exitStatus);
 		//What I recommend doing is checking if the status of the child is null or not (null indicates abnormal exit,
 		// else it is the value of the status the child passed in when calling exit).
 		// This requires the child knowing whether it is exiting normally or abnormally when calling exit().
@@ -764,7 +770,6 @@ public class UserProcess {
 		uThread.finish();
 		//Close Kthread by calling Kthread.finish()
 		KThread.finish();
-		exitStatus = null;
 		return -1;
 	}
 
@@ -944,6 +949,6 @@ public class UserProcess {
 
 	UThread uThread;
 
-	String exitStatus;
+	int exitStatus;
 
 }
