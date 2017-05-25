@@ -648,8 +648,8 @@ public class UserProcess {
 		if (fileName == null)
 			return -1;
 		int lenFileName = fileName.length();
-		System.out.println("the file name end with" + fileName.substring(lenFileName - 5,lenFileName));
-		System.out.println("file name matched with .coff" + fileName.substring(lenFileName - 5,lenFileName).equals(".coff"));
+		//System.out.println("the file name end with" + fileName.substring(lenFileName - 5,lenFileName));
+		//System.out.println("file name matched with .coff" + fileName.substring(lenFileName - 5,lenFileName).equals(".coff"));
 		if (lenFileName <= 5 || !fileName.substring(lenFileName - 5,lenFileName).equals(".coff"))
 			return -1;
 
@@ -744,12 +744,11 @@ public class UserProcess {
 		fileTable.clear();
 		fdTable.clear();
 
-		System.out.println("Total key value pairs in HashMap after cleanning are : " + fileTable.size() + fdTable.size());
+		//System.out.println("Total key value pairs in HashMap after cleanning are : " + fileTable.size() + fdTable.size());
 
 		unloadSections();
 		coff.close();
 
-		if (pPid != 0)
 		    //save the status for parent;
 		exitStatus = status;
 		System.out.println("The status"+ exitStatus);
@@ -923,32 +922,26 @@ public class UserProcess {
 
 	private Map<String, Integer> fdTable; //File name to fd
 
-	int maxFileNameLength = 256;
+    private static final int maxFileNameLength = 256;
 
-	int localBufferSize = 1024;
+    private static final int localBufferSize = 1024;
 
-	int maxNumOpenFile = 2 + 16;
+    private static final int maxNumOpenFile = 2 + 16;
 
-	int maxArgvLength = 4;
-
-	int maxStatusLength = 1;
+    private static final int maxArgvLength = 4;
 
 	private static int numProcess = 1;
 
-	int pid;
+	private int pid;
 
-	int pPid = 0;
+	private int pPid = 0;
 
-	LinkedList<Integer>	cPids = new LinkedList<>();
+	private LinkedList<Integer>	cPids = new LinkedList<>();
 
 	private Map<Integer, UserProcess> pidTable = new HashMap<>(); //pid -> Process
 
-	private Lock cLock = new Lock();
+	private UThread uThread;
 
-	private Condition waitingOnMeToFinish = new Condition(cLock);
-
-	UThread uThread;
-
-	int exitStatus;
+	private int exitStatus;
 
 }
