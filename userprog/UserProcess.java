@@ -183,23 +183,22 @@ public class UserProcess {
 
 		int amount = 0;
 		int bufOffset = offset; // offset of buffer if we need to start somewhere in mid
-		int pageOffset = vpnOffset; //
+		int pageOffset = vpnOffset;
 		int bytesToWrite = length;
 
-		while (amount < length)
-		{
+		while (amount < length) {
 			// The data we wish to write will extend off the size of the page
-			if (pageOffset + bytesToWrite > pageSize)
-			{
+			if (pageOffset + bytesToWrite > pageSize) {
+
 				// Need to save the context of all data to account for the next page on the table
-				int amountToWrite = pageSize - pageOffset;
+				int diff = pageSize - pageOffset;
 
 				// Read all the way to the end of the page table
-				System.arraycopy(memory, address, data, offset, amountToWrite);
+				System.arraycopy(memory, address, data, offset, diff);
 
 				// Update the data for the next page
-				amount = amount + amountToWrite;
-				bufOffset = bufOffset + amountToWrite; // Where to start in the buffer
+				amount = amount + diff;
+				bufOffset = bufOffset + diff; // Where to start in the buffer
 				bytesToWrite = length - amount;
 				vpn = vpn + 1; // GO to next page table
 
@@ -217,8 +216,7 @@ public class UserProcess {
 					address = entry.ppn * pageSize;
 				}
 			}
-			else
-			{
+			else {
 				// Base case - just copy array and increase amount to length
 				System.arraycopy(memory, address, data, bufOffset, bytesToWrite);
 				amount = amount + bytesToWrite;
@@ -227,7 +225,7 @@ public class UserProcess {
 			}
 
 		}
-		
+
 		return amount;
 	}
 
@@ -265,7 +263,6 @@ public class UserProcess {
 
 		int vpn = Processor.pageFromAddress(vaddr);
 		int vpnOffset = Processor.offsetFromAddress(vaddr);
-		int lastVpn = Processor.pageFromAddress(vaddr + length);
 
 		TranslationEntry entry = pageTable[vpn];
 
@@ -274,22 +271,53 @@ public class UserProcess {
 		if (entry.readOnly) return 0;
 
 		entry.used = true;
+		int address = entry.ppn*pageSize + vpnOffset;
 
-		int amount = Math.min(length, pageSize - vpnOffset);
-		System.arraycopy(data, offset, memory, Processor.makeAddress(entry.ppn,
-				vpnOffset), amount);
-		offset += amount;
+		int amount = 0;
+		int bufOffset = offset; // offset of buffer if we need to start somewhere in mid
+		int pageOffset = vpnOffset;
+		int bytesToWrite = length;
 
-		for (int i = vpn + 1; i <= lastVpn; i++) {
-			entry = pageTable[vpn];
-			if (entry == null)
-				return amount;
-			int len = Math.min(length - amount, pageSize);
-			System.arraycopy(data, offset, memory, Processor.makeAddress(
-					entry.ppn, 0), len);
-			offset += len;
-			amount += len;
+		// Same as readvirtual memory, just in other direction
+		while (amount < length) {
+			if (pageOffset + bytesToWrite > pageSize) {
+				int diff = pageSize - pageOffset;
+				System.arraycopy(data, bufOffset, memory, address, diff);
+
+				// Update the new values for the next page
+				amount = amount + diff;
+				bufOffset = bufOffset + diff;
+				bytesToWrite = length - amount;
+				vpn = vpn + 1;
+
+				// Check if the vpn > pageTable.length
+				if (vpn >= pageTable.length) break;
+				else {
+					// Set to un-used
+					pageTable[vpn - 1].used = false;
+					entry = pageTable[vpn];
+
+					// If entry is not valid, break
+					if (!entry.valid)  break;
+					entry.used = true;
+					pageOffset = 0; // Move on to next page
+					address = entry.ppn * pageSize;
+
+				}
+
+			}
+
+			else {
+				// Base case - just copy array and increase amount to length
+				System.arraycopy(data, bufOffset, memory, address, bytesToWrite);
+				amount = amount + bytesToWrite;
+				bufOffset = bufOffset + bytesToWrite;
+				pageTable[vpn].used = false;
+			}
+
 		}
+
+
 
 		return amount;
 	}
