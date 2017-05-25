@@ -323,7 +323,7 @@ public class UserProcess {
 	}
 
 	public TranslationEntry getTranslationEntry(int vpn) {
-        System.out.println("vpn:" +pageTable[vpn].vpn + "--> ppn:" + pageTable[vpn].ppn);
+        //System.out.println("vpn:" +pageTable[vpn].vpn + "--> ppn:" + pageTable[vpn].ppn);
         return pageTable[vpn];
 	}
 
