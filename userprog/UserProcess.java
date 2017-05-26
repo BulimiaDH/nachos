@@ -879,10 +879,6 @@ public class UserProcess {
 
         //save the status for parent;
 		exitStatus = status;
-		//System.out.println("The status"+ exitStatus);
-		//What I recommend doing is checking if the status of the child is null or not (null indicates abnormal exit,
-		// else it is the value of the status the child passed in when calling exit).
-		// This requires the child knowing whether it is exiting normally or abnormally when calling exit().
 
 		// Any children of the process no longer have a parent process.
 //		for (int cPid : cPids) {

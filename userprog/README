@@ -1,0 +1,46 @@
+Member of our group:
+Cong Liu A53207007 Christopher Lew A12320072
+
+
+What code we wrote:
+Part 1: Implementing the file system calls (creat, open, read, write, close, and unlink) in UserProcess.java.
+        Assign a file descriptor to each open file and keep track of them in a file descriptor table(fdFileTable).
+
+Part 2: To support multiprogramming, we implemented a way to allocate the machine's physical memory by dividing the physical
+        memory into pages where its empty pages are tracked by a Linked List of free pages by the UserKernal. We initialize the
+        physical pages onto the linked list when the kernal is initialized. In UserProcess we modified several areas of code,
+        most notably ReadVirtualMemory and WriteVirtualMemory to account for a translation from virtual memory to physical memory
+        using allocated page tables. The main issue to account for aside from the translation from a contiguous virtual memory to
+        physical memory was if page length was reached, so we have to check the boundary, and we go over the boundary, we must move
+        to the next page in the page table if it exists. We also made several checks to make sure pages were not null, and if we could
+        write to them or not.
+
+Part 3: Implementing the exec, join and exit system calls in UserProcess.java.
+        The exec system call will executing a given coff file in a child process and assign a pid to it. We use a global
+        variable(numProcess) to realize the assignment and increase its value to make all the pid unique.
+
+        The join system call will first check whether the certain child process has already exited. If so, it will return immediately.
+        Or it will call the join function we implemented in proj1 to sleep until the child process finish. It will get the
+        exit status from the child process and then write it to a space in the memory(the address is given by the input parameter:statusVR).
+
+        It cleans up all the things in the exit system call and set the status. I use a class variable exitStatus to
+        record the exit status for each process.
+
+        The meaning of exitStatus value of the process(the value get from exit(status)):
+        null: the process is not exit(the value will be set when exit)
+        0: the process exiting normally, but when exiting normally, it can also be set to other numbers
+        Integer. The return of the join: 1.
+        Integer.MIN_VALUE: The child exited because of the unhandled exception;  The return of the join: 0.
+
+
+How well it worked: pretty good and kind of bullet-proof
+
+How we test our code: using the test cases from the website of 16fall and write some test files by ourselves. We assign the
+        memory in an reversed order to test the boundary.
+
+
+How each group member contributed to the project:
+Cong Liu: part1, part3 and testing
+Christopher Lew: part2 and testing
+
+
