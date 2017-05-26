@@ -39,6 +39,12 @@ main (int argc, char *argv[])
     printf ("childargv[2]: %d (0x%x)\n", childargv[2], childargv[2]);
     printf ("childargv[3]: %d (0x%x)\n", childargv[3], childargv[3]);
     printf ("childargv[4]: %d (0x%x)\n", childargv[4], childargv[4]);
+    printf ("childargv[0]: %s (0x%x)\n", childargv[0], childargv[0]);
+    printf ("childargv[1]: %s (0x%x)\n", childargv[1], childargv[1]);
+    printf ("childargv[2]: %s (0x%x)\n", childargv[2], childargv[2]);
+    printf ("childargv[3]: %s (0x%x)\n", childargv[3], childargv[3]);
+    printf ("childargv[4]: %s (0x%x)\n", childargv[4], childargv[4]);
+
 
     r = exec (childargv[0], childargc, childargv);
     if (r < 0) {
