@@ -264,15 +264,27 @@ public class UserProcess {
 		int vpn = Processor.pageFromAddress(vaddr);
 		int vpnOffset = Processor.offsetFromAddress(vaddr);
 
-		TranslationEntry entry = pageTable[vpn];
+		TranslationEntry entry = null;
+
+		try {
+			entry = getTranslationEntry(vpn);
+			entry.used = true;
+		}
+		catch(ArrayIndexOutOfBoundsException e) {
+			System.out.println("IndexOutOfBoundsException: " + e.getMessage());
+			return 0;
+		}
+
 
 		if (entry == null) return 0;
 
+		// If entry is read only, return 0
 		if (entry.readOnly) return 0;
 
 		entry.used = true;
 		int address = entry.ppn*pageSize + vpnOffset;
 
+		// Initialize data to update
 		int amount = 0;
 		int bufOffset = offset; // offset of buffer if we need to start somewhere in mid
 		int pageOffset = vpnOffset;
