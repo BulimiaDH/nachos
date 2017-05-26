@@ -442,6 +442,8 @@ public class UserProcess {
 		}
 
 		pageTable = ((UserKernel) Kernel.kernel).allocatePages(numPages);
+		if (pageTable == null)
+		    return false;
 		for (int i = 0; i < pageTable.length; i++) {
 			pageTable[i].vpn = i;
 		}
@@ -514,7 +516,8 @@ public class UserProcess {
 		if (pid == 1)
 			Machine.halt();
 
-		Lib.assertNotReached("Machine.halt() did not halt machine!");
+        System.err.println("Halt() called by non-root process!");
+		//Lib.assertNotReached("Machine.halt() did not halt machine!");
 		return 0;
 	}
 
@@ -790,7 +793,8 @@ public class UserProcess {
 		 process.setPPid(pid);
 		 addChildProcess(cPid);
 
-		 Lib.assertTrue(process.execute(fileName, argv));
+		 if (process.execute(fileName, argv) == false)
+		     return -1;
 
 		 //KThread.currentThread().finish();
 		 return cPid;
