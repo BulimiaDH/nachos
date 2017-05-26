@@ -2,7 +2,6 @@ package nachos.userprog;
 
 import nachos.machine.*;
 import nachos.threads.*;
-import nachos.userprog.*;
 import nachos.vm.VMProcess;
 
 import java.nio.ByteBuffer;
@@ -28,6 +27,8 @@ public class UserProcess {
 	 */
 	public UserProcess() {
 		pid = numProcess++;
+        numLiveProcess++;
+        pidProcTable.put(pid, this);
 
 		int numPhysPages = Machine.processor().getNumPhysPages();
 		pageTable = new TranslationEntry[numPhysPages];
@@ -769,13 +770,11 @@ public class UserProcess {
 			argv[i] = readVirtualMemoryString(argvVRi, maxArgvLength);
 		}
 
-		System.out.println("the arguments are:"+ argv + argc + "in total");
+		//System.out.println("the arguments are:"+ argv + argc + "in total");
 
 		 UserProcess process = newUserProcess();
 
          int cPid = process.pid;
-		 pidTable.put(cPid, process);
-		 process.setPid(cPid);
 		 process.setPPid(pid);
 		 addChildProcess(cPid);
 
@@ -800,33 +799,34 @@ public class UserProcess {
 	 * an unhandled exception, returns 0. If processID does not refer to a child
 	 * process of the current process, returns -1.
 	 */
-	private int handleJoin(int cPid, int statusVR){
-		//int join(int pid, int *status);
 
+    //int join(int pid, int *status);
+	private int handleJoin(int cPid, int statusVR){
 		//If processID does not refer to a child  process of the current process, returns -1.
-		if (!cPids.contains(cPid) || !pidTable.containsKey(cPid))
+		if (!cPids.contains(cPid))
 			return -1;
 
-		System.out.println("Join");
-		pidTable.get(cPid).uThread.join();
-
-		//Get child status and write it to *status
-		int status = pidTable.get(cPid).exitStatus;
-
+        Integer status = pidProcTable.get(cPid).exitStatus;
+        if (status != null){
+            System.out.println("child has already exited when calling join, the status is" + status);
+        }
+        else{
+            System.out.println("Join");
+            pidProcTable.get(cPid).uThread.join();
+            //Get child status and write it to *status
+            status = pidProcTable.get(cPid).exitStatus;
+        }
+        if (status == null) {
+            System.out.println("The join failed.");
+            return -1;
+        }
 		byte [] statusByteArr = ByteBuffer.allocate(4).putInt(status).array();
 		System.out.println("The status of the child" + status + statusByteArr);
 		// not sure the length of the status
 		writeVirtualMemory(statusVR, statusByteArr);
 
-		//If the child exited normally, returns 1.
-		if (status == 0)
-			return 1;
-
-        //If the child exited as a result of an unhandled exception, returns 0.
-        if (status != 0)
-            return 0;
-
-		return -1;
+        //If the child exited as a result of an unhandled exception, returns 0. If the child exited normally, returns 1.
+        return (status == Integer.MIN_VALUE) ? 0 : 1 ;
 	}
 
 	/**
@@ -840,6 +840,15 @@ public class UserProcess {
 	 *
 	 * exit() never returns.
 	 */
+
+	/**
+	    The meaning of exitStatus value of the process(the value get from exit(status)):
+	    null: the process is not exit(the value will be set when exit)
+	    0: the process exiting normally, but when exiting normally, it can also be set to other numbers
+	    Integer. The return of the join: 1.
+	    Integer.MIN_VALUE: The child exited because of the unhandled exception;  The return of the join: 0.
+	 */
+
 	private int handleExit(int status){
 //		void exit(int status)
 		fdFileTable.clear();
@@ -850,7 +859,7 @@ public class UserProcess {
 		unloadSections();
 		coff.close();
 
-		    //save the status for parent;
+        //save the status for parent;
 		exitStatus = status;
 		System.out.println("The status"+ exitStatus);
 		//What I recommend doing is checking if the status of the child is null or not (null indicates abnormal exit,
@@ -858,18 +867,22 @@ public class UserProcess {
 		// This requires the child knowing whether it is exiting normally or abnormally when calling exit().
 
 		// Any children of the process no longer have a parent process.
-		for (int cPid : cPids)
-			pidTable.get(cPid).setPPid(0);
+		for (int cPid : cPids) {
+		    if (pidProcTable.containsKey(cPid))
+                pidProcTable.get(cPid).setPPid(0);
+        }
 
 		//In case of last process, call kernel.kernel.terminate()
-		pidTable.remove(pid);
-		if (pidTable.size() == 0)
+		//pidProcTable.remove(pid);
+        numLiveProcess--;
+		if (numLiveProcess == 0)
 			Kernel.kernel.terminate();
 
 		//Wake up parent if sleeping
+        //Close Kthread by calling Kthread.finish()
 		uThread.finish();
-		//Close Kthread by calling Kthread.finish()
-		KThread.finish();
+
+        //exit never returns, if it return then means the thread is not closed successfully.
 		return -1;
 	}
 
@@ -995,7 +1008,8 @@ public class UserProcess {
 		default:
 			Lib.debug(dbgProcess, "Unexpected exception: "
 					+ Processor.exceptionNames[cause]);
-			Lib.assertNotReached("Unexpected exception");
+			//Lib.assertNotReached("Unexpected exception");
+			handleExit(Integer.MIN_VALUE); // exit because of the unhandled exception
 		}
 	}
 
@@ -1039,10 +1053,12 @@ public class UserProcess {
 
 	private LinkedList<Integer>	cPids = new LinkedList<>();
 
-	private Map<Integer, UserProcess> pidTable = new HashMap<>(); //pid -> Process
+	private static Map<Integer, UserProcess> pidProcTable = new HashMap<>(); //pid -> Process
 
 	private UThread uThread;
 
-	private int exitStatus;
+	private Integer exitStatus = null;
+
+	private static int numLiveProcess = 0;
 
 }
