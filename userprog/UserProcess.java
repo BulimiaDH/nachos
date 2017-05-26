@@ -865,8 +865,10 @@ public class UserProcess {
 	    Integer.MIN_VALUE: The child exited because of the unhandled exception;  The return of the join: 0.
 	 */
 
+
 	private int handleExit(int status){
 //		void exit(int status)
+        closeAllFiles();
 		fdFileTable.clear();
 		nameFdTable.clear();
 
@@ -883,10 +885,10 @@ public class UserProcess {
 		// This requires the child knowing whether it is exiting normally or abnormally when calling exit().
 
 		// Any children of the process no longer have a parent process.
-		for (int cPid : cPids) {
-		    if (pidProcTable.containsKey(cPid))
-                pidProcTable.get(cPid).setPPid(0);
-        }
+//		for (int cPid : cPids) {
+//		    if (pidProcTable.containsKey(cPid))
+//                pidProcTable.get(cPid).setPPid(0);
+//        }
 
 		//In case of last process, call kernel.kernel.terminate()
 		//pidProcTable.remove(pid);
@@ -1028,6 +1030,12 @@ public class UserProcess {
 			handleExit(Integer.MIN_VALUE); // exit because of the unhandled exception
 		}
 	}
+
+    private void closeAllFiles(){
+        for (Integer key: fdFileTable.keySet()){
+            fdFileTable.get(key).close();
+        }
+    }
 
 	/** The program being run by this process. */
 	protected Coff coff;
