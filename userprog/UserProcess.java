@@ -543,7 +543,7 @@ public class UserProcess {
 				}
 				fdFileTable.put(fd, file);
 				nameFdTable.put(fileName, fd);
-				System.out.println(fileName + "is created/opened successfully. The fd is " + fd);
+				//System.out.println(fileName + "is created/opened successfully. The fd is " + fd);
 				return fd;
 			}
 		}
@@ -573,7 +573,7 @@ public class UserProcess {
 				}
 				fdFileTable.put(fd, file);
 				nameFdTable.put(fileName, fd);
-				System.out.println(fileName + "is created/opened successfully. The fd is " + fd);
+				//System.out.println(fileName + "is created/opened successfully. The fd is " + fd);
 				return fd;
 			}
 		}
@@ -710,7 +710,7 @@ public class UserProcess {
 
         fdFileTable.remove(fd);
         //nameFdTable.values().remove(fd); //delete nameFdTable entry
-        System.out.println(fd + "is closed successfully.");
+        //System.out.println(fd + "is closed successfully.");
         return 0;
 	 }
 
@@ -879,7 +879,7 @@ public class UserProcess {
 
         //save the status for parent;
 		exitStatus = status;
-		System.out.println("The status"+ exitStatus);
+		//System.out.println("The status"+ exitStatus);
 		//What I recommend doing is checking if the status of the child is null or not (null indicates abnormal exit,
 		// else it is the value of the status the child passed in when calling exit).
 		// This requires the child knowing whether it is exiting normally or abnormally when calling exit().
