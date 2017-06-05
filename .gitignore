@@ -1,7 +1,7 @@
 .DS_Store
 .vagrant
 sftp-config.json
-
+.class
 test/*.o
 test/*.a
 test/1
