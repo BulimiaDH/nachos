@@ -29,7 +29,7 @@ public class VMProcess extends UserProcess {
 	 * <tt>UThread.restoreState()</tt>.
 	 */
 	public void restoreState() {
-		super.restoreState();
+		//super.restoreState();
 	}
 
 	/**
@@ -56,10 +56,17 @@ public class VMProcess extends UserProcess {
 	 * 
 	 * @param cause the user exception that occurred.
 	 */
+
+	private void handleTLBMiss(int vaddr){
+	}
+
 	public void handleException(int cause) {
 		Processor processor = Machine.processor();
 
 		switch (cause) {
+			case Processor.exceptionTLBMiss:
+				handleTLBMiss(processor.readRegister(Processor.regBadVAddr));
+				break;
 		default:
 			super.handleException(cause);
 			break;
