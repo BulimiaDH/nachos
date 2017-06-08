@@ -108,7 +108,7 @@ public class VMProcess extends UserProcess {
 		}
 		else if (tlbEntry.valid && !pageTable[vpn].valid){
 			tlbEntry.valid = false;
-			Lib.debug(dbgProcess,"valid on TLB but not on page table!");
+			Lib.debug(dbgVM,"valid on TLB but not on page table!");
 		}
 		Machine.processor().writeTLBEntry(tlbIndex, tlbEntry);
 	}
@@ -138,7 +138,7 @@ public class VMProcess extends UserProcess {
 //			unpinnedPage.sleep();
 //		}
 //		return toEvictPPN;
-	    //TODO： set the old entry on page table and TLB using that ppn to invalid
+	    //TODO: set the old entry on page table and TLB using that ppn to invalid
 //
 //	}
 //	private void handlePageFault(int vpn){
@@ -146,7 +146,7 @@ public class VMProcess extends UserProcess {
 //		//TODO: 1There is a free physical page
 //		int ppn;
 //		//Allocate one from list; //same with proj2
-//		if（UserKernel.freePages.size() > 0)
+//		if (UserKernel.freePages.size() > 0)
 //		{
 //			ppn = ((Integer)UserKernel.freePages.removeFirst()).intValue();
 //		}
@@ -202,12 +202,13 @@ public class VMProcess extends UserProcess {
 		//if not find an invalid place, pick one randomly and overwrite
 		TLBWritePos = Lib.random(TLBSize);
 		//one TLB entry has been evicted, should do TLB-PT synchronization
-		synchronizeTLBPT();
+		synchronizeTLBPTEntry(TLBWritePos);
 
 		return TLBWritePos;
 	}
 
 	private void handleTLBMiss(int vaddr){
+		Lib.debug(dbgVM,"TLBMiss Happens");
 		//1. vaddr -> vpn
 		int vpn = Processor.pageFromAddress(vaddr);
 		int off = Processor.offsetFromAddress(vaddr);
@@ -217,17 +218,17 @@ public class VMProcess extends UserProcess {
 
 		//Page fault handler
 		if (!pageTable[vpn].valid){
-			System.out.println("page fault");
+			Lib.debug(dbgVM,"PageFault Happens");
 			//TODO: handlePageFault
 			//handlePageFault(vpn);
 		}
 
 		//2. find the TranslationEntry corresponding to the ppn
 		TranslationEntry tlbEntry = pageTable[vpn];
-		//TODO: We can access that entry using vpn, we don't need the ppn as the slides said right?
 
 		//3. find a spot in the TLB to put the page corresponding to the ppn
 		int TLBWritePos = allocateTLBEntry();
+		Lib.debug(dbgVM,"New TLB Position" + TLBWritePos);
 
 		//4. put the TranslationEntry corresponding to the ppn in the TLB
 		Machine.processor().writeTLBEntry(TLBWritePos, tlbEntry);
