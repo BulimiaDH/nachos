@@ -89,7 +89,7 @@ public class UserProcess {
      * <tt>UThread.restoreState()</tt>.
      */
     public void restoreState() {
-	Machine.processor().setPageTable(pageTable);
+	   Machine.processor().setPageTable(pageTable);
     }
 
     /**
@@ -238,25 +238,27 @@ public class UserProcess {
 	return amount;
     }
     protected int pinVirtualPage(int vpn, boolean isUserWrite) {
-	if (vpn < 0 || vpn >= pageTable.length)
-	    return -1;
+		if (vpn < 0 || vpn >= pageTable.length)
+			return -1;
 
-	TranslationEntry entry = pageTable[vpn];
-	if (!entry.valid || entry.vpn != vpn)
-	    return -1;
+		TranslationEntry entry = pageTable[vpn];
+		if (!entry.valid || entry.vpn != vpn)
+			return -1;
 
-	if (isUserWrite) {
-	    if (entry.readOnly)
-		return -1;
-	    entry.dirty = true;
-	}
+		if (isUserWrite) {
+			if (entry.readOnly)
+			return -1;
+			entry.dirty = true;
+		}
 
-	entry.used = true;
+		entry.used = true;
 
-	return entry.ppn;
+		return entry.ppn;
     }
+
     
     protected void unpinVirtualPage(int vpn) {
+
     }
 
     /**
