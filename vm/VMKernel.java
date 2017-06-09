@@ -50,6 +50,8 @@ public class VMKernel extends UserKernel {
 		super.terminate();
 	}
 
+
+
 	// dummy variables to make javac smarter
 	private static VMProcess dummy1 = null;
 
@@ -57,5 +59,7 @@ public class VMKernel extends UserKernel {
 	//TODO
 	//OpenFile swapFile = fileSystem.open("swapFile",true);
 	private static LinkedList freeSwapPages;
-	public PageFrame[] invertedPageTable;
+	public static PageFrame[] invertedPageTable;
+	public static Swapper swapper;
 }
+

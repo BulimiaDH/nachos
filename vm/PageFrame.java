@@ -7,12 +7,23 @@ import nachos.userprog.*;
  */
 public class PageFrame {
     public PageFrame(){
-        pinCount = 0;
+        this.pinCount = 0;
         //TODO verify
         TranslationEntry tEntry = new TranslationEntry(-1, -1, false, false,
         false, false);
     }
-    VMProcess process;
-    TranslationEntry tEntry;
-    int pinCount;
+    public boolean isReadOnly(){
+        return tEntry.readOnly;
+    }
+    public boolean isDirty(){
+        return tEntry.dirty;
+
+    }
+    public boolean isUsed(){
+        return tEntry.used;
+    }
+    private UserProcess userProcess;
+    private TranslationEntry tEntry;
+    private int pinCount;
+    private Lock pinCountLock;
 }

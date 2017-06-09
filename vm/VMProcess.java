@@ -5,6 +5,8 @@ import nachos.threads.*;
 import nachos.userprog.*;
 import nachos.vm.*;
 
+import java.util.Arrays;
+
 /**
  * A <tt>UserProcess</tt> that supports demand-paging.
  */
@@ -133,7 +135,7 @@ public class VMProcess extends UserProcess {
 //		}
 //		toEvict = victim;
 //		victim = (victim + 1) % NUMBER_OF_FRAMES;
-//
+//		//TODO: if the select one is not read-only and is dirty, write to SWAP FILE //
 //		if (all pages are pinned){
 //			unpinnedPage.sleep();
 //		}
@@ -141,49 +143,106 @@ public class VMProcess extends UserProcess {
 	    //TODO: set the old entry on page table and TLB using that ppn to invalid
 //
 //	}
-//	private void handlePageFault(int vpn){
-//		//TODO: Ask the kernel for a free physical page
-//		//TODO: 1There is a free physical page
-//		int ppn;
-//		//Allocate one from list; //same with proj2
-//		if (UserKernel.freePages.size() > 0)
-//		{
-//			ppn = ((Integer)UserKernel.freePages.removeFirst()).intValue();
-//		}
-//		//TODO: 2No free physical page, choose a page to evict: Clock Algorithm
-//		else{
-//			//No free memory, need to evict a page
-//			Sync TLB entries;
-//			Select a victim for replacement; //Clock algorithm
-//			if the select one is not read-only and is dirty, write to SWAP FILE //
-//			victim = clockAlgoToSelectVictim();
-//			//TODO sync TLB
-//			if (victim is not read-only and dirty){
-//				swap out;
-//				//File.read(index*pageSize, memory,paddr, pageSize);
-//			}
-//			Invalidate PTE and TLB entry of the victim page
-//		}
-//		//Allocate a physical page
-//		if (pageTable[vpn].dirty){
-//			//TODO:swap in
-//			spn = 	pageTable[vpn].ppn;
-//			// File.write(index*pageSize, memory,paddr, pageSize);
-//		}
-//		else{
-//			if (coff area){
-//				load page from coff section
-//
-//				coff.getNumSections()
-//				coff.getSection()
-//				section.getFirstVPN()
-//				section.loadPage(section_num,ppn)
-//			}
-//		}
-//		update page table and inverted page table
-//		pageTable[vpn].valid = true;
-//
-//	}
+
+	/**
+	 * Invalidate an Page Table Entry
+	 * @param vpn
+	 */
+	private void invalidatePTE(int vpn){
+		//TODO:sync
+		pageTable[vpn].valid = false;
+	}
+	private void invalidatePTE(int vpn,int spn){
+		//TODO:sync
+		pageTable[vpn].valid = false;
+		pageTable[vpn].ppn = spn;
+	}
+
+	/**
+	 * Invalidate an TLB Entry
+	 * @param vpn
+	 */
+	private void invaidateTLBE(int vpn){
+		//TODO: sync
+		TranslationEntry tlbEntry;
+		for (int i = 0; i< Machine.processor().getTLBSize(); i++){
+			synchronizeTLBPTEntry(i);
+			tlbEntry = Machine.processor().readTLBEntry(i);
+			if (tlbEntry.vpn == vpn){
+				tlbEntry.valid = false;
+				Machine.processor().writeTLBEntry(i, tlbEntry);
+			}
+		}
+	}
+	private void loadPageToMem(int vpn, int ppn) {
+		//1 load from swap file
+		if (pageTable[vpn].dirty){
+			//TODO:swap in
+			int spn = pageTable[vpn].ppn;
+			VMKernel.swapper.swapIn(spn, ppn);
+		}
+		else{
+			//2 load from coff
+			if (0 <= vpn && vpn < numPages - stackPages - 1)
+				//load page from coff section
+				section = coff.getSection(vpn);
+			section.loadPage(vpn-section.getFirstVPN(),ppn);
+			//coff.getNumSections()
+			//coff.getSection()
+			//section.getFirstVPN()
+			//section.loadPage(section_num,ppn)
+		}
+		//3 stack area, fill 0
+			else if (numPages - stackPages - 1 <= vpn && vpn < numPages)
+		{
+			Arrays.fill(Machine.processor().getMemory(), ppn*pageSize, (ppn+1)*pageSize,(byte) 0);
+		}
+		//4 others: err
+		else{
+			System.err.println("vpn is out of range");
+		}
+	}
+	}
+	/**
+	 * handle page fault, fiven
+	 * @param vpn
+	 */
+	private void handlePageFault(int vpn){
+
+		int ppn;
+		int victimPPN;
+		int spn = -1;
+		CoffSection section;
+		//1 Find a place to put the page
+		//1.1 There is a free physical page
+		if (UserKernel.freePages.size() > 0)
+		{
+			ppn = ((Integer)UserKernel.freePages.removeFirst()).intValue();
+		}
+		//1.2 No free physical page, choose a page to evict: Clock Algorithm
+		else{
+			//TODO sync TLB entriesl
+			victimPPN = clockAlgoToSelectVictim();
+			if (!VMKernel.invertedPageTable[victimPPN].isReadOnly() && VMKernel.invertedPageTable[victimPPN].isDirty()){
+				//TODO: swap out;
+				spn = VMKernel.swapper.swapOut(victimPPN);
+
+			}
+			//Invalidate PTE and TLB entry of the victim page
+			//TODO: not right here
+			invalidatePTE(vpn,spn);
+			//TODO: not right here
+			invaidateTLBE(vpn);
+			ppn = victimPPN;
+		}
+
+
+		//2. Put the page to mem
+		loadPageToMem(int vpn, int ppn);
+		update page table and inverted page table
+		pageTable[vpn].valid = true;
+
+	}
 
 	/**
 	 * find a spot in the TLB to put the page corresponding to the ppn
@@ -220,7 +279,7 @@ public class VMProcess extends UserProcess {
 		if (!pageTable[vpn].valid){
 			Lib.debug(dbgVM,"PageFault Happens");
 			//TODO: handlePageFault
-			//handlePageFault(vpn);
+			handlePageFault(vpn);
 		}
 
 		//2. find the TranslationEntry corresponding to the ppn
@@ -261,3 +320,4 @@ public class VMProcess extends UserProcess {
 
 	private static final char dbgVM = 'v';
 }
+
