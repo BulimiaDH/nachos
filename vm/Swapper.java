@@ -28,6 +28,14 @@ public class Swapper {
     }
 
     /**
+     * Test this swapper.
+     */
+    public void selfTest() {
+        Swapper();
+        LinkedList<int>
+    }
+
+    /**
      * write from swapfile(spn) to physical mem(ppn)
      * Swap in data from files from swapfile to main memory
      * @param spn Swap Page Number - The Page Number in the swap file;
@@ -106,6 +114,7 @@ public class Swapper {
         for (int i = 1; i <= swpSize; i++) {
             freeSwapPages.add(new Integer(swpSize + i));
         }
+        return true;
     }
 
     private int allocateSwapPage() {
@@ -114,6 +123,13 @@ public class Swapper {
 
     private boolean deallocateSwapPage(spn) {
         freeSwapPages.add(new Integer(spn));
+        return true;
+    }
+
+    public boolean freeAll(LinkedList spns) {
+        while (spns.size() > 0) {
+            deallocateSwapPage(spns.poll());
+        }
         return true;
     }
 
