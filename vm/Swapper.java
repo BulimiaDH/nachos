@@ -32,7 +32,7 @@ public class Swapper {
      */
     public void selfTest() {
         Swapper();
-        LinkedList<int>
+        LinkedList test;s
     }
 
     /**
