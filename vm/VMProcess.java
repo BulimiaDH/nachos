@@ -4,8 +4,11 @@ import nachos.machine.*;
 import nachos.threads.*;
 import nachos.userprog.*;
 import nachos.vm.*;
+import nachos.vm.VMKernel;
 
 import java.util.Arrays;
+import java.util.LinkedList;
+import java.util.List;
 
 /**
  * A <tt>UserProcess</tt> that supports demand-paging.
@@ -23,6 +26,7 @@ public class VMProcess extends UserProcess {
 	 * invalidate all the entries in TLB;
 	 */
 	private void flushTLB(){
+		synchronizeAll();
 		for (int i = 0; i < Machine.processor().getTLBSize(); i++){
 			TranslationEntry tlbEntry = Machine.processor().readTLBEntry(i);
 			tlbEntry.valid = false;
@@ -34,9 +38,8 @@ public class VMProcess extends UserProcess {
 	 * Called by <tt>UThread.saveState()</tt>.
 	 */
 	public void saveState() {
-		super.saveState();
-		synchronizeTLBPT();
-		flushTLB();
+		super.saveState();	
+		flushTLB(); //with sync
 	}
 
 	/**
@@ -45,14 +48,24 @@ public class VMProcess extends UserProcess {
 	 */
 	public void restoreState() {
 	}
-//	protected int pinVirtualPage(int vpn, boolean isUserWrite) {
-//		//TODO
-//		return super.pinVirtualPage(vpn, isUserWrite);
-//	}
-//	protected void unpinVirtualPage(int vpn) {
-//		//TODO
-//		//unpinnedPage.wakeup();
-//	}
+    //TODO check will this kind of override work?
+	@Override
+	protected int pinVirtualPage(int vpn, boolean isUserWrite) {
+		int ppn = super.pinVirtualPage(vpn, isUserWrite);
+		if (ppn == -1)
+			return -1;
+		VMKernel.invertedPageTable[ppn].incrementPinCount();
+		return ppn;
+	}
+
+	@Override
+	protected void unpinVirtualPage(int vpn) {
+		VMKernel.physPageLock.acquire();
+		int ppn = pageTable[vpn].ppn;
+		VMKernel.invertedPageTable[ppn].decrementPinCount();
+		VMKernel.unpinnedPage.wake();
+		VMKernel.physPageLock.release();
+	}
 	/**
 	 * Initializes page tables for this process so that the executable can be
 	 * demand-paged.
@@ -60,37 +73,52 @@ public class VMProcess extends UserProcess {
 	 * @return <tt>true</tt> if successful.
 	 */
 	protected boolean loadSections() {
-		return super.loadSections();
-//		//TODO:lasy loading code heres
-//		// initalize pageTable
-//		pageTable = new TranslationEntry[numPages];
-//		for (int vpn=0; vpn<numPages; vpn++) {
-//			pageTable[vpn] = new TranslationEntry(vpn, -1,
-//					false, false, false, false);
-//		}
-//		return true;
+		//return super.loadSections();
+		//lasy loading code here
+		// initalize pageTable
+		//TODO who will set the read-only flags?
+		pageTable = new TranslationEntry[numPages];
+		for (int vpn = 0; vpn < numPages; vpn++) {
+			pageTable[vpn] = new TranslationEntry(vpn, -1,
+					false, false, false, false);
+
+			return true;
+		}
 	}
 
 	/**
 	 * Release any resources allocated by <tt>loadSections()</tt>.
 	 */
 	protected void unloadSections() {
-//		for (int vpn=0; vpn<pageTable.length; vpn++) {
-//			if (pageTable[vpn].valid) {
-//				UserKernel.freePages.add(new Integer(pageTable[vpn].ppn));
-//				pageTable[vpn].valid = false;
-//			}
-//			//TODO question: do we need to synchronize TLB and inverted page Table?
-//		}
-		super.unloadSections();
+		VMKernel.physPageLock.acquire();
+		List<Integer> spns = new LinkedList<>();
+		Lib.debug(dbgVM,"free page size" + UserKernel.freePages.size()+"before unloadSections before the process exit");
+
+		//put the physical memory back to free
+		for (int vpn=0; vpn<pageTable.length; vpn++) {
+			if (pageTable[vpn].valid) {
+				UserKernel.freePages.add(new Integer(pageTable[vpn].ppn));
+				pageTable[vpn].valid = false;
+			}
+			else{
+				if (pageTable[vpn].dirty && pageTable[vpn].ppn != -1)
+					spns.add(pageTable[vpn].ppn);
+			}
+			//TODO question: do we need to synchronize TLB
+		}
+		flushTLB();
+		//TODO releaseSwapPages
+		VMKernel.releaseSwapPages(spns);
+		Lib.debug(dbgVM,"free page size" + UserKernel.freePages.size()+"after unloadSections before the process exit");
+		VMKernel.physPageLock.release();
 	}
 
 	/**
 	 * sync all the TLB PT Entries to have the correct valid/dirty/used bits
 	 */
-	private void synchronizeTLBPT(){
+	private void synchronizeAll(){
 		for (int i = 0; i< Machine.processor().getTLBSize(); i++){
-			synchronizeTLBPTEntry(i);
+			synchronizeEntry(i);
 		}
 	}
 
@@ -98,11 +126,13 @@ public class VMProcess extends UserProcess {
 	 * Modify one TLB PT entry to have the correct valid/dirty/used bits
 	 * @param tlbIndex
 	 */
-	public void synchronizeTLBPTEntry(int tlbIndex){
+	public void synchronizeEntry(int tlbIndex){
 		TranslationEntry tlbEntry = Machine.processor().readTLBEntry(tlbIndex);
 		int vpn = tlbEntry.vpn;
-
+		int ppn = tlbEntry.ppn;
 		if (tlbEntry.valid && pageTable[vpn].valid) {
+			Lib.assertTrue(VMKernel.invertedPageTable[ppn].getVPN() ==vpn,"TLB and invertedPageTable sync went wrong, ppn and vpn not matched");
+			Lib.assertTrue(pageTable[vpn].ppn == ppn,"TLB and PageTable sync went wrong, ppn and vpn not matched");
 			pageTable[vpn].dirty = tlbEntry.dirty || pageTable[vpn].dirty;
 			pageTable[vpn].used = tlbEntry.used || pageTable[vpn].used;
 			tlbEntry.dirty = tlbEntry.dirty || pageTable[vpn].dirty;
@@ -110,138 +140,83 @@ public class VMProcess extends UserProcess {
 		}
 		else if (tlbEntry.valid && !pageTable[vpn].valid){
 			tlbEntry.valid = false;
-			Lib.debug(dbgVM,"valid on TLB but not on page table!");
+			Lib.debug(dbgVM,"failed,valid on TLB but not on page table!");
 		}
 		Machine.processor().writeTLBEntry(tlbIndex, tlbEntry);
 	}
 
 
-//    //TODO: when evict a physical page
-//	//TODO: ?synchronize all TLB or just one entry?
 
 
-//	private int clockAlgoToSelectVictim(){
-	//TODO: sync before use it, before delete it
-	//TODO: sync TLB All and PageTable, inverted PageTable, since we will check the used bit
-//		int toEvictPPN = -1;
-//		int victim = 0;
-//		//check the used bit and set, select one to evict
-//		//Replacement algorithm
-//		//TODO check pin bit
-//		while(VMKernel.invertedPageTable[victim].tEntry.used){
-//			invertedPageTable[victim].tEntry.used = false;
-//
-//			victim = (victim + 1) % NUMBER_OF_FRAMES;
-//		}
-//		toEvict = victim;
-//		victim = (victim + 1) % NUMBER_OF_FRAMES;
-//		//TODO: if the select one is not read-only and is dirty, write to SWAP FILE //
-//		if (all pages are pinned){
-//			unpinnedPage.sleep();
-//		}
-//		return toEvictPPN;
-	    //TODO: set the old entry on page table and TLB using that ppn to invalid
-//
-//	}
 
-	/**
-	 * Invalidate an Page Table Entry
-	 * @param vpn
-	 */
-	private void invalidatePTE(int vpn){
-		//TODO:sync
-		pageTable[vpn].valid = false;
-	}
-	private void invalidatePTE(int vpn,int spn){
-		//TODO:sync
-		pageTable[vpn].valid = false;
-		pageTable[vpn].ppn = spn;
-	}
 
-	/**
-	 * Invalidate an TLB Entry
-	 * @param vpn
-	 */
-	private void invaidateTLBE(int vpn){
-		//TODO: sync
-		TranslationEntry tlbEntry;
-		for (int i = 0; i< Machine.processor().getTLBSize(); i++){
-			synchronizeTLBPTEntry(i);
-			tlbEntry = Machine.processor().readTLBEntry(i);
-			if (tlbEntry.vpn == vpn){
-				tlbEntry.valid = false;
-				Machine.processor().writeTLBEntry(i, tlbEntry);
+
+
+	private boolean getPageFromCoff(int vpn, int ppn) {
+		CoffSection section;
+		for (int i = 0; i < coff.getNumSections(); i++) {
+			section = coff.getSection(i);
+			if (section.getFirstVPN() <= vpn &&  vpn < section.getFirstVPN() + section.getLength()) {
+				section.loadPage(vpn - section.getFirstVPN(), ppn);
+				return true;
 			}
 		}
+		return false;
 	}
-	private void loadPageToMem(int vpn, int ppn) {
+
+	/**
+	 * Precondition: the ppn has been assigned to the faultingPage
+	 * Load a page from swap file or coff to mem
+	 * @param faultingPage which page to be loaded
+	 *
+	 */
+	public boolean loadPageToMem(TranslationEntry faultingPage) {
+		CoffSection section;
+		int vpn = faultingPage.vpn;
+		int ppn = faultingPage.ppn;
 		//1 load from swap file
-		if (pageTable[vpn].dirty){
+		if (faultingPage.dirty){
 			//TODO:swap in
-			int spn = pageTable[vpn].ppn;
+			int spn = faultingPage.ppn;
 			VMKernel.swapper.swapIn(spn, ppn);
+			Lib.debug(dbgVM,"load from swap file");
 		}
-		else{
+		else if (0<= vpn && vpn < numPages - stackPages - 1){
 			//2 load from coff
-			if (0 <= vpn && vpn < numPages - stackPages - 1)
-				//load page from coff section
-				section = coff.getSection(vpn);
-			section.loadPage(vpn-section.getFirstVPN(),ppn);
-			//coff.getNumSections()
-			//coff.getSection()
-			//section.getFirstVPN()
-			//section.loadPage(section_num,ppn)
+			Lib.assertTrue(getPageFromCoff(vpn, ppn), "load from coff fail"));
+			Lib.debug(dbgVM,"load from coff");
 		}
 		//3 stack area, fill 0
-			else if (numPages - stackPages - 1 <= vpn && vpn < numPages)
+		else if (numPages - stackPages - 1 <= vpn && vpn < numPages)
 		{
 			Arrays.fill(Machine.processor().getMemory(), ppn*pageSize, (ppn+1)*pageSize,(byte) 0);
+			Lib.debug(dbgVM,"load to stack");
 		}
 		//4 others: err
 		else{
-			System.err.println("vpn is out of range");
+			Lib.debug(dbgVM,"fail, vpn is out of range");
+			return false;
 		}
+		return true;
 	}
-	}
+
+
+
+	//TODO no need to sync invertedPageTable and PageTable if the entry are the same object
 	/**
-	 * handle page fault, fiven
-	 * @param vpn
+	 * handle page fault
+	 * @param faultingPageVPN
 	 */
-	private void handlePageFault(int vpn){
-
-		int ppn;
-		int victimPPN;
-		int spn = -1;
-		CoffSection section;
+	private void handlePageFault(int faultingPageVPN){
+		Lib.debug(dbgVM, "start handle page fault, vpn is "+ faultingPageVPN );
+		TranslationEntry faultingPage = pageTable[faultingPageVPN];
 		//1 Find a place to put the page
-		//1.1 There is a free physical page
-		if (UserKernel.freePages.size() > 0)
-		{
-			ppn = ((Integer)UserKernel.freePages.removeFirst()).intValue();
-		}
-		//1.2 No free physical page, choose a page to evict: Clock Algorithm
-		else{
-			//TODO sync TLB entriesl
-			victimPPN = clockAlgoToSelectVictim();
-			if (!VMKernel.invertedPageTable[victimPPN].isReadOnly() && VMKernel.invertedPageTable[victimPPN].isDirty()){
-				//TODO: swap out;
-				spn = VMKernel.swapper.swapOut(victimPPN);
-
-			}
-			//Invalidate PTE and TLB entry of the victim page
-			//TODO: not right here
-			invalidatePTE(vpn,spn);
-			//TODO: not right here
-			invaidateTLBE(vpn);
-			ppn = victimPPN;
-		}
-
-
+		faultingPage.ppn = VMKernel.occupyOnePhysPage(faultingPage);
+		Lib.debug(dbgVM,"new ppn = " + faultingPage.ppn);
 		//2. Put the page to mem
-		loadPageToMem(int vpn, int ppn);
-		update page table and inverted page table
-		pageTable[vpn].valid = true;
-
+		loadPageToMem(faultingPage);
+		//update page table and inverted page table
+		faultingPage.valid = true;
 	}
 
 	/**
@@ -261,7 +236,7 @@ public class VMProcess extends UserProcess {
 		//if not find an invalid place, pick one randomly and overwrite
 		TLBWritePos = Lib.random(TLBSize);
 		//one TLB entry has been evicted, should do TLB-PT synchronization
-		synchronizeTLBPTEntry(TLBWritePos);
+		synchronizeEntry(TLBWritePos);
 
 		return TLBWritePos;
 	}
@@ -272,13 +247,12 @@ public class VMProcess extends UserProcess {
 		int vpn = Processor.pageFromAddress(vaddr);
 		int off = Processor.offsetFromAddress(vaddr);
 
-		//TODO: What if pageTable doesn't has this entry? or the vpn is invalid? vpn >= numPages? return -1?
+		//TODO:What if pageTable doesn't has this entry? or the vpn is invalid? vpn >= numPages? return -1?
 		Lib.assertTrue(vpn >= 0 && vpn < pageTable.length, "The vaddr is invalid");
 
 		//Page fault handler
 		if (!pageTable[vpn].valid){
 			Lib.debug(dbgVM,"PageFault Happens");
-			//TODO: handlePageFault
 			handlePageFault(vpn);
 		}
 
@@ -319,5 +293,10 @@ public class VMProcess extends UserProcess {
 	private static final char dbgProcess = 'a';
 
 	private static final char dbgVM = 'v';
+
+
+
+
+
 }
 

@@ -14,7 +14,7 @@ public class UserKernel extends ThreadedKernel {
      * Allocate a new user kernel.
      */
     public UserKernel() {
-	super();
+        super();
     }
 
     /**
@@ -22,24 +22,26 @@ public class UserKernel extends ThreadedKernel {
      * processor's exception handler.
      */
     public void initialize(String[] args) {
-	super.initialize(args);
+        super.initialize(args);
 
-	console = new SynchConsole(Machine.console());
-	
-	Machine.processor().setExceptionHandler(new Runnable() {
-		public void run() { exceptionHandler(); }
-	    });
-	
-	processLock = new Lock();
-	
-	memoryLock = new Lock();	
-	for (int ppn=0; ppn<Machine.processor().getNumPhysPages(); ppn++)
-	    freePages.add(new Integer(ppn));
+        console = new SynchConsole(Machine.console());
+
+        Machine.processor().setExceptionHandler(new Runnable() {
+            public void run() {
+                exceptionHandler();
+            }
+        });
+
+        processLock = new Lock();
+
+        memoryLock = new Lock();
+        for (int ppn = 0; ppn < Machine.processor().getNumPhysPages(); ppn++)
+            freePages.add(new Integer(ppn));
     }
 
     /**
      * Test the console device.
-     */	
+     */
     public void selfTest() {
 //	super.selfTest();
 //
@@ -60,19 +62,19 @@ public class UserKernel extends ThreadedKernel {
     /**
      * Returns the current process.
      *
-     * @return	the current process, or <tt>null</tt> if no process is current.
+     * @return the current process, or <tt>null</tt> if no process is current.
      */
     public static UserProcess currentProcess() {
-	if (!(KThread.currentThread() instanceof UThread))
-	    return null;
-	
-	return ((UThread) KThread.currentThread()).process;
+        if (!(KThread.currentThread() instanceof UThread))
+            return null;
+
+        return ((UThread) KThread.currentThread()).process;
     }
 
     /**
      * The exception handler. This handler is called by the processor whenever
      * a user instruction causes a processor exception.
-     *
+     * <p>
      * <p>
      * When the exception handler is invoked, interrupts are enabled, and the
      * processor's cause register contains an integer identifying the cause of
@@ -83,11 +85,11 @@ public class UserKernel extends ThreadedKernel {
      * that caused the exception.
      */
     public void exceptionHandler() {
-	Lib.assertTrue(KThread.currentThread() instanceof UThread);
+        Lib.assertTrue(KThread.currentThread() instanceof UThread);
 
-	UserProcess process = ((UThread) KThread.currentThread()).process;
-	int cause = Machine.processor().readRegister(Processor.regCause);
-	process.handleException(cause);
+        UserProcess process = ((UThread) KThread.currentThread()).process;
+        int cause = Machine.processor().readRegister(Processor.regCause);
+        process.handleException(cause);
     }
 
     /**
@@ -95,7 +97,7 @@ public class UserKernel extends ThreadedKernel {
      * program in it. The name of the shell program it must run is returned by
      * <tt>Machine.getShellProgramName()</tt>.
      *
-     * @see	nachos.machine.Machine#getShellProgramName
+     * @see    nachos.machine.Machine#getShellProgramName
      */
     public void run() {
         super.run();
@@ -103,7 +105,7 @@ public class UserKernel extends ThreadedKernel {
         UserProcess process = UserProcess.newUserProcess();
 
         String shellProgram = Machine.getShellProgramName();
-        Lib.assertTrue(process.execute(shellProgram, new String[] { }));
+        Lib.assertTrue(process.execute(shellProgram, new String[]{}));
 
         KThread.currentThread().finish();
     }
@@ -112,21 +114,33 @@ public class UserKernel extends ThreadedKernel {
      * Terminate this kernel. Never returns.
      */
     public void terminate() {
-	super.terminate();
+        super.terminate();
     }
 
-    /** Globally accessible reference to the synchronized console. */
+    /**
+     * Globally accessible reference to the synchronized console.
+     */
     public static SynchConsole console;
-    /** Guards access to process data: lists, exit status tables, etc. */
+    /**
+     * Guards access to process data: lists, exit status tables, etc.
+     */
     public static Lock processLock;
-    /** The process ID to assign to the next process. */
+    /**
+     * The process ID to assign to the next process.
+     */
     public static int nextProcessID = 0;
-    /** The number of started processes that have not yet terminated. */
+    /**
+     * The number of started processes that have not yet terminated.
+     */
     public static int numRunningProcesses = 0;
 
-    /** Guards access to the physical page free list. */
+    /**
+     * Guards access to the physical page free list.
+     */
     public static Lock memoryLock;
-    /** The physical page free list. */
+    /**
+     * The physical page free list.
+     */
     public static LinkedList freePages = new LinkedList();
 
     // dummy variables to make javac smarter

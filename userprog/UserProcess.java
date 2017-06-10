@@ -247,7 +247,7 @@ public class UserProcess {
 
 		if (isUserWrite) {
 			if (entry.readOnly)
-			return -1;
+				return -1;
 			entry.dirty = true;
 		}
 
@@ -386,10 +386,10 @@ public class UserProcess {
 		      + " section (" + section.getLength() + " pages)");
 
 	    for (int i=0; i<section.getLength(); i++) {
-		int vpn = section.getFirstVPN()+i;
+			int vpn = section.getFirstVPN()+i;
 
-		pageTable[vpn].readOnly = section.isReadOnly();
-		section.loadPage(i, pinVirtualPage(vpn, false));
+			pageTable[vpn].readOnly = section.isReadOnly();
+			section.loadPage(i, pinVirtualPage(vpn, false));
 	    }
 	}
 	
@@ -401,7 +401,7 @@ public class UserProcess {
      */
     protected void unloadSections() {
         for (int vpn=0; vpn<pageTable.length; vpn++)
-	    UserKernel.freePages.add(new Integer(pageTable[vpn].ppn));
+	    	UserKernel.freePages.add(new Integer(pageTable[vpn].ppn));
     }    
 
     /**

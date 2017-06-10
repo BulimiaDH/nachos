@@ -1,5 +1,8 @@
 package nachos.vm;
-
+import nachos.machine.*;
+import nachos.threads.*;
+import nachos.userprog.*;
+import nachos.vm.*;
 /**
  * Created by onion on 6/8/17.
  */
@@ -13,10 +16,10 @@ public class Swapper {
 
     /**
      * swap the written page to SwapFile
-     * @param victimPPN
+     * @param victimEntry
      * @return spn
      */
-    public swapOut(int victimPPN){
+    public int swapOut(TranslationEntry victimEntry){
         int spn;
         //File.read(index*pageSize, memory,paddr, pageSize);
         return spn;
