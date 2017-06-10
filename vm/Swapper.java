@@ -27,15 +27,16 @@ public class Swapper {
      */
 
     public Swapper() {
-
+        swapperLock = new Lock();
+        numSwapPages = freeSwapPages.size();
     }
 
     /**
      * Test this swapper.
      */
     public void selfTest() {
-        Swapper();
-        LinkedList test;s
+        Swapper swap = new Swapper();
+
     }
 
     /**
@@ -47,24 +48,28 @@ public class Swapper {
     public void swapIn(int spn, int ppn){
 
         //check if file is dirty. Only dirty files are swapped return -1
-        if (!entry.dirty) {
-            Lib.debug(dbgVM, "Entry is not dirty, do not need to swap");
-            return -1;
-        }
+//        if (!entry.dirty) {
+//            Lib.debug(dbgVM, "Entry is not dirty, do not need to swap");
+//            return -1;
+//        }
 
         // TODO check if file is pinned. Pinned files cannot be swapped
         /**
          * If Pinned -> Lib.debug(dbgVM, "Entry is pinned");
          */
 
-        byte[] pageData = [pageSize];
+        swapperLock.acquire();
+
+        byte[] pageData = new byte[pageSize];
 
         // Read from swap file
-        swapFile.read(spn*pageSize, pageData, 0, pageSize);
+        Lib.asserTrue(swapFile.read(spn*pageSize, pageData, 0, pageSize) == pageSize);
 
         // Write to main memory
         byte[] memory = Machine.processor().getMemory();
         System.arraycopy(pageData, 0, memory, ppn*pageSize, pageSize);
+
+        swapperLock.release();
     }
 
     /**
@@ -75,9 +80,11 @@ public class Swapper {
      */
     public int swapOut(TranslationEntry victimEntry) {
 
+        swapperLock.acquire();
         //check if file is dirty. Only dirty files are swapped return -1
         if (!entry.dirty) {
             Lib.debug(dbgVM, "Entry is not dirty, do not need to swap");
+            swapperLock.release();
             return -1;
         }
 
@@ -85,10 +92,11 @@ public class Swapper {
         // It should be valid because we are moving from main memory to swap file
         if (!entry.valid) {
             Lib.debug(dbgVM, "Entry is not in main memory");
+            swapperLock.release();
             return -1;
         }
 
-        // TODO check if file is pinned. Pinned files cannot be swapped
+        //TODO check if file is pinned. Pinned files cannot be swapped
         /**
          * If Pinned -> Lib.debug(dbgVM, "Entry is pinned");
          */
@@ -97,30 +105,37 @@ public class Swapper {
             increaseSize();
         }
 
-        spn = allocateSwapPage();
+        int spn = allocateSwapPage();
+
         // Read from physical frame in memory
         byte[] memory = Machine.processor().getMemory();
-        ArrayFile mem = ArrayFile(memory);
-
-        byte[] pageData = [pageSize];
-        mem.read(victimEntry.ppn * pageSize, pageData, 0, pageSize);
+        byte[] pageData = new byte[pageSize];
+        System.arraycopy(memory, pageSize * ppn, pageData, 0, pageSize);
 
         // Write to swapfile in disk
-        swapFile.write(pageData, 0, pageSize);
-        //File.read(index*pageSize, memory,paddr, pageSize);
+        Lib.assertTrue(swapFile.write(spn*pageSize, pageData, 0, pageSize) == pageSize);
+
+        swapperLock.release();
         return spn;
     }
 
     public boolean increaseSize() {
-        int swpSize = freeSwapPages.size();
+        //TODO keep track of number of swap pages
+        int swpSize = numSwapPages;
         for (int i = 1; i <= swpSize; i++) {
             freeSwapPages.add(new Integer(swpSize + i));
+            numSwapPages++;
         }
         return true;
     }
 
     private int allocateSwapPage() {
-        return freeSwapPages.remove();
+        if (freeSwapPages.size() != 0) {
+            return freeSwapPages.remove();
+        } else {
+            increaseSize();
+            return freeSwapPages.remove();
+        }
     }
 
     private boolean deallocateSwapPage(spn) {
@@ -136,5 +151,9 @@ public class Swapper {
     }
 
     private static final int pageSize = Processor.pageSize;
+    private Lock swapperLock;
+    private int numSwapPages;
+
+    
 
 }
