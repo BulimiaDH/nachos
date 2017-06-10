@@ -19,11 +19,6 @@ public class VMKernel extends UserKernel {
 	public VMKernel() {
 		super();
 		invertedPageTable = new PageFrame[Machine.processor().getNumPhysPages()];
-		swapFile = fileSystem.open("swapFile" ,true);
-
-		for (int spn=0; spn<Machine.processor().getNumPhysPages(); spn++)
-			freeSwapPages.add(new Integer(spn));
-		}
 	}
 
 	/**
@@ -180,8 +175,7 @@ public class VMKernel extends UserKernel {
 
 	private static final char dbgVM = 'v';
 	//TODO
-	protected static OpenFile swapFile;
-	protected static LinkedList freeSwapPages;
+
 	public static PageFrame[] invertedPageTable;
 	public static Swapper swapper;
 	protected static Lock physPageLock;

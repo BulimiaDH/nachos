@@ -28,6 +28,13 @@ public class Swapper {
 
     public Swapper() {
         swapperLock = new Lock();
+        swapFile = VMKernel.fileSystem.open(swapFileName ,true);
+        freeSwapPages = new LinkedList();
+
+        for (int spn=0; spn<Machine.processor().getNumPhysPages(); spn++)
+            freeSwapPages.add(new Integer(spn));
+        }
+
         numSwapPages = freeSwapPages.size();
     }
 
@@ -143,17 +150,29 @@ public class Swapper {
         return true;
     }
 
-    public boolean freeAll(LinkedList spns) {
+    public void freeAll(LinkedList spns) {
+        swapperLock.acquire();
+
         while (spns.size() > 0) {
             deallocateSwapPage(spns.poll());
         }
-        return true;
+
+        swapperLock.release();
+    }
+
+    public void close() {
+        swapFile.close();
+        VMKernal.fileSystem.remove(swapFileName)
     }
 
     private static final int pageSize = Processor.pageSize;
+    private static final String swapFileName = "swapFile.swp";
     private Lock swapperLock;
     private int numSwapPages;
 
-    
+    protected static OpenFile swapFile;
+    protected static LinkedList freeSwapPages;
+
+
 
 }
