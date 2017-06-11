@@ -20,6 +20,8 @@ public class VMKernel extends UserKernel {
         super();
     }
 
+
+
     /**
      * Initialize this kernel.
      */
@@ -31,6 +33,34 @@ public class VMKernel extends UserKernel {
         clockHand = 0;
         swapper = new Swapper();
         unpinnedPage = new Condition(memoryLock);
+    }
+
+    /**
+     * Precondition: physPageLock is acquired.
+     * Atomic: make sure the PTE is valid and pin it
+     * @param ppn
+     */
+    public static void pinPageFrame(int ppn) {
+        Lib.assertTrue(memoryLock.isHeldByCurrentThread());
+        Lib.assertTrue(invertedPageTable[ppn].getProcess().processID() == VMKernel.currentProcess().processID(),
+                "A non-owner process is pinning a page!");
+        invertedPageTable[ppn].incrementPinCount();
+        Lib.debug(dbgVM,"- pinning physical page #" + ppn + ". pinCount is " + invertedPageTable[ppn].getPinCount() + " now \t - proc #" + VMKernel.currentProcess().processID());
+    }
+    private static int unpinCount = 1;
+    // TODO assert that only the owner process can unpin the page
+
+    public static void unpinPageFrame(int ppn) {
+        memoryLock.acquire();
+
+        Lib.debug(dbgVM,"- unpinning physical page #" + ppn + ". pinCount was " + invertedPageTable[ppn].getPinCount() + "\t - proc #" + VMKernel.currentProcess().processID());
+        unpinCount++;
+
+        Lib.assertTrue(invertedPageTable[ppn].getProcess().processID() == VMKernel.currentProcess().processID(),
+                "A non-owner process is unpinning a page!");
+        invertedPageTable[ppn].decrementPinCount();
+        unpinnedPage.wake();
+        memoryLock.release();
     }
 
     /**
@@ -181,6 +211,8 @@ public class VMKernel extends UserKernel {
         VMKernel.invertedPageTable[victimPPN] = new PageFrame(currentProcess(), faultingPage);
 
         Lib.assertTrue(victimPPN != -1);
+        //pin the page here
+        pinPageFrame(victimPPN);
         memoryLock.release();
         return victimPPN;
     }
@@ -291,7 +323,9 @@ class PageFrame {
     public UserProcess getProcess() {
         return process;
     }
-
+    public int getPinCount(){
+        return pinCount;
+    }
     public int getVPN() {
         return tEntry.vpn;
     }
@@ -440,7 +474,7 @@ class Swapper {
     public boolean increaseSize() {
         //TODO keep track of number of swap pages
         int swpSize = numSwapPages;
-        for (int i = 1; i <= swpSize; i++) {
+        for (int i = 0; i < swpSize; i++) {
             freeSwapPages.add(new Integer(swpSize + i));
             numSwapPages++;
         }

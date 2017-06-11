@@ -30,7 +30,7 @@ STDLIB_O = start.o stdio.o stdlib.o
 LIB = assert atoi printf readline stdio strncmp strcat strcmp strcpy strlen memcpy memset
 NLIB = libnachos.a
 
-TARGETS = stressBoundry pagePinningTest halt_child  memset  assert atoi halt  exit1 exec1 join1 execarg1 except1 openCreateTest createOpenCloseTest createOpenCloseTest2 read write1 write2 write4 write10 snake sh matmult sort echo cat cp mv rm #chat chatserver
+TARGETS = readWriteBigFileand5Process stressBoundry pagePinningTest halt_child  memset  assert atoi halt  exit1 exec1 join1 execarg1 except1 openCreateTest createOpenCloseTest createOpenCloseTest2 read write1 write2 write4 write10 snake sh matmult sort echo cat cp mv rm #chat chatserver
 
 .SECONDARY: $(patsubst %.c,%.o,$(wildcard *.c))
 
