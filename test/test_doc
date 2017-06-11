@@ -1,2 +1,116 @@
+Nachos Project 3: Demand Paging (Due 6/9/2017 11:59pm, no extension)
 
-roses are
+In project 2, each process had a page table which nachos knew about: memory accesses in userspace used the table to map virtual addresses to physical addresses. Project 3 deals purely with implementing a more sophisticated memory management system. The memory hierarchy of the simulated architecture is as follows:
+
+TLB. Userspace can only access memory through the TLB. When a (valid) mapping is not present, a fault is generated and the kernel is entered.
+Physical Memory. The TLB entries, as usual, specify physical page numbers. Recall that userspace in nachos is run inside a MIPS simulator; in this project, that userspace can only see what the TLB can see. But in your kernel, you can access all of memory. This may seem confusing at first, but it is simply an artifact of the nature of nachos (as configured for project 3). When a TLB miss occurs, it is the kernel's responsibility to obtain a page with the correct contents, and place the mapping in the TLB.
+Disk. The demands of the system's processes may exceed physical memory, in which case modified memory must be copied to disk. Nearly analogously, requests for (some) memory pages not currently present are satisfied by reading from disk.
+Notice how this differs from memory systems we have discussed. Typically, there is a hardware MMU, which first refers to the TLB, automatically checking page tables if an entry is not found. If a mapping is not found in the page tables, the kernel is entered. Here, however, the hardware only refers to the TLB, faulting into the kernel when the desired mapping is not present - the hardware does not see any page tables.
+
+Your implementation will have the following properties:
+
+Demand Paging. Mappings will enter the TLB only strictly as needed. This mechanism will depend upon servicing TLB misses, and divide into a number of cases which will be detailed later. For the time being, consider the differing initial contents of stack/argument pages and coff pages, as well as the treatment of read- only and read/write coff pages. When no physical pages are free, it is necessary to free pages, possibly writing back to swap.
+Lazy Loading. To fulfill the spirit of demand paging, processes should load no pages when started, and depend on demand paging to provide even the first instruction they execute. To be clear, this means that loadSections() won't allocate a single page!
+Page Pinning. At times it will be necessary to "pin" a page in memory, making it temporarily impossible to evict.
+For this project, we provide no new code - running inside the proj3 subdirectory will cause nachos to use the new memory configuration. Your new implementation should reside in the vm subdirectory, in the files VMKernel.java and VMProcess.java.
+
+You will notice that these classes inherit from UserKernel and UserProcess. You are advised to depend on the implementation of your base classes as much as possible . Note that, thanks to the existence of readVirtualMemory() and writeVirtualMemory(), very little code needed to know the details of virtual addressing; for example, you should not have to change any of the primary code which serviced the read() syscall.
+
+You should not change the base classes in any way which depends on project 3. That is to say, it should still be possible to run nachos from the proj2 subdirectory, and achieve proper results.
+
+Note that even though userspace is no longer reading your per-process page tables directly, you may still find them useful for your own memory management (notice that pageTable was protected, not private).
+
+Illustrative Example
+
+The following scenario demonstrates many aspects of both the simulated memory hierarchy, and of the kernel you must write. It is perhaps most useful to read this example twice - once now, and again after finishing the document.
+
+Process A is executing in userspace, which invokes the read() syscall.
+Process A enters the kernel, and is part way through writing to user memory.
+A timer interrupt triggers context switch, entering process B.
+Process B immediately generates numerous TLB misses, which in turn cause pages to be evicted from other processes, including some used by process A.
+Eventually, process A is scheduled to run again, and continues handling the read() syscall as before.
+This example demonstrates the necessity of page pinning - the page which A is writing to should be pinned in memory. Imagine if otherwise process B evicted the page, and when process A was rescheduled, it accidentally wrote over, say, B's code pages.
+
+Notice also that this example exposes the userspace/kernel disconnect of memory management - userspace passed through the TLB to access its memory, but when process A was servicing the read() request, it did not care whether the mapping was in the TLB.
+
+Design Aspects
+
+Although the implementation details are heretofore vague, it is useful to begin considering the following two design problems, which end up being central to this project.
+
+In many places in this project, there will be clear, simple solutions which are reasonably efficient. Prefer such solutions.
+
+Swap File
+To manage swapped out pages on disk, use the StubFileSystem (via ThreadedKernel.fileSystem) as in project 2. There are many design choices, however we suggest using a single, global swap file across all processes. This file should last the lifetime of your kernel, and be properly deleted upon nachos termination. Be sure to choose a reasonably unique file name.
+
+When designing the swap space, the central point is that the units of swap are pages. Thus you should try to conserve disk space using the same techniques applied in virtual memory: if you end up having gaps in your swap space (which will necessarily occur with a global swap file upon program termination), try to fill them. As with physical memory in project 2, a global free list provides an adequate solution.
+
+It is safe to assume that the swap file can grow arbitrarily, and that any read/write errors are fatal, meaning a process depending on the problematic pages can be killed.
+
+Global Memory Accounting
+In addition to tracking free pages (which may be managed as in project 2), there are now two extra pieces of memory information of relevance to all processes: which pages are pinned, and which process owns which pages. The former is necessary to prevent the eviction of certain "sensitive" pages. The latter is necessary to managing eviction of pages.
+
+There are many approaches to solving this problem, however we suggest using a global inverted page table.
+
+Tasks:
+
+Unlike other projects, the different components of project 3 are not very isolated; for instance, correctly handling TLB misses depends on all components of the system, however you can not run a single line of userspace code without servicing TLB misses. As such, you may find yourself moving between different elements of this section many times before completing your implementation.
+
+TLB Management. Try to write a skeletal TLB miss handler.
+On TLB miss, a Processor.exceptionTLBMiss fault is generated. To handle this, add code to VMProcess.handleException(); the virtual address causing the fault can be accessed with Machine.processor().readRegister(Processor.regBadVAddr).
+The following functions provided access to the TLB:
+Machine.processor().getTLBSize() returns the number of TLB entries.
+Machine.processor().readTLBEntry(i) returns the TranslationEntry corresponding to the ith TLB entry.
+Machine.processor().writeTLBEntry(i, t) overwrites the ith TLB entry with the TranslationEntry t.
+The TLB must gracefully handle context switches; an adequate approach is to invalidate all entries when leaving a process. The functions VMProcess.saveState() and VMProcess.restoreState() are of interest here.
+The TLB replacement policy may be simple, for instance random; the only requirement is that all TLB entries are used (don't simply overwrite a single entry over and over). Only invalidate TLB entries when necessary.
+Note that the processor updates the dirty and used flags for the valid mappings contained in the TLB. Your own java kernel code, however, does not automatically set these flags. Keep this in mind, it will be addressed momentarily.
+Demand Paging. Work out the guts of demand paging.
+Now is a good time to choose a basic global memory accounting data structure, as mentioned in the design section.
+It turns out to also be a good time to decide how to track accesses to memory originating in the kernel. To be concrete, as stated above, invocations of readVirtualMemory() and writeVirtualMemory() will not update any flags in the TLB. Furthermore, the page may not even be in the TLB. One possible approach to this problem is to track kernel-originating memory accesses in the already existing pageTable. Then, at times, it will be necessary to synchronize the TLB and pageTable state.
+readVirtualMemory() and writeVirtualMemory() will need to pin memory.
+Perhaps now you would like to implement swap space.
+All the pieces are in place to implement the most sensitive part of project: page eviction. You should never write to swap a page which was not modified. For example, read-only coff sections should never appear in swap space. 
+Your page eviction strategy should be the clock algorithm (bears the name "second-chance algorithm" in the text). Note that you also have enough information to implement the text's "enhanced second-chance algorithm" if you so desire. 
+Notice why the code is sensitive: it depends on the used and dirty flags, which are managed separately in the kernel (your job) and in userspace (MIPS simulator's job). Mismanaging the used flag simply means the clock algorithm may perform poorly. On the other hand, mismanaging the dirty flag is catastrophic, since a page is only written out when modified; ie, the results of a memory modification may be lost.
+Note that it is entirely possible that a process needs a page, but not only are all pages in use (meaning an eviction must occur), but all pages are pinned (meaning an eviction must not occur now ). You must handle this situation. To find an adequate solution, we recommend reviewing the synchronization primitives covered early in the course.
+Lazy Loading. Now that you actually have a method of obtaining pages, you must fill them with relevant content.
+Lazy loading means the process of allocating and filling pages must be deferred as long as possible. Therefore, your loadSections() should allocate no memory, and it is the job of the TLB fault handler and readVirtualMemory()/writeVirtualMemory() to grab memory on demand.
+As alluded to in the introduction, there are a variety of regimes here.
+Read-only coff sections originate in the coff file, and should never appear in swap.
+Read/write coff sections originate in the coff file, but may need to enter swap if modified.
+Other pages should be zero-initialized, and are never backed by the coff file.
+It is now apt to complete the TLB miss handler.
+Parting Tips
+
+There are many, many potential race conditions in this project. Consider for instance the situation where the TLB entries are being read (for instance, for the clock algorithm), and a context switch occurs. Then, upon continuation of the process halfway through the clock algorithm, the TLB state processed so far is completely invalid. Another TLB race: you choose to evict a page, identify that it has not been modified, then that process is switched to and it modifies the page, then you are context switched in, and evict the page without writing it out to swap.
+Depending on your use of locks, it is even possible to produce deadlock. We suggest using lock ordering.
+Consider a system with one physical page, and two running processes both invoking an instruction which involves two memory references not present on the same page. To handle this situation, it would be necessary for the kernel to service two TLB faults atomically ; otherwise, the processes could continually interrupt each other's partial progress, an instance of livelock. You do not need to handle this situation.
+Make sure that you can still run project 2 from the proj2 subdirectory.
+Make a routine to print memory state, and use it liberally when hunting for errors. Lib.debug() and Lib.assertTrue() are your best friends for a couple more weeks.
+Always begin testing with only one running program. You can control the number of pages (and thus, indirectly, the necessity to swap) with the -m paramater to nachos, or by modifying nachos.conf in the proj3 subdirectory. Our tests will often run with few pages (even just a single page). Furthermore, the relative sizes of TLB and physical memory are in no way guaranteed (in particular, our tests will sometimes run with TLB larger, and sometimes with TLB smaller).
+Your kernel should be functionally equivalent to your project 2 kernel (with the exception of constrained memory scenarios); that is, from the proj3 subdirectory, you should be able to properly run every test program which you ran for project 2.
+You should end up being vaguely pleased at how much code you re-used from project 2.
+
+Take a look at the Project3 guideline
+Autograder Submission:
+
+You can test your implementation before you submit a final version by using the autograder. The autograder works similar to the submit script. There is a project specific autograder submission script. To submit, log into your course account and run: prep cs120s After completing the autograder submission, your submitted implementation will be put in a queue to be autograded. Results will be emailed to you (The email system often gets clogged. So you may need to wait a few hours to receive the email). The autograder runs every hour. You can submit your code to the autograder as many times as you like. The autograder will run up until the project submission deadline.
+
+Important
+Please note: project solutions submitted to the autograder do not constitute a project submission. If you fail to submit your project as per the instructions below, you will not receive a grade for the project.
+
+Code Submission:
+
+As with all projects you will submit it using the project specific submission script. Only one submission per group is expected. To submit, log into your course account and run: prep cs120s
+
+Important
+As a final step, create a file named README in the project directory. The README file should list the members of your group and provide a short description of what code you wrote, how well it worked, how you tested your code, and how each group member contributed to the project. The goal is to make it easier for us to understand what you did as we grade your project in case there is a problem with your code, not to burden you with a lot more work. Do not agonize over wording, it does not have to be poetic. But it should be informative.
+
+Then move into your nachos directory and runautograder-proj3 After completing the autograder submission, your submitted implementation will be Then move into your nachos directory and run: submit-proj3 You will have until the posted due date to submit this project. You can submit as many times as you like. The last version submitted before the due date will be the one accepted.
+Cheating:
+
+Warning: For all projects, we encourage you to discuss, but don't cheat, the price is too high. Cheating includes:
+
+Copy your friends' implementation
+Copy an implementation found on the Internet
+We will manually check and also run several code plagiarism tools on submissions and multiple Internet distributions (if you can find it, so can we).
