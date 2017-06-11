@@ -1,5 +1,6 @@
 package nachos.vm;
 
+import com.sun.tools.internal.xjc.reader.xmlschema.bindinfo.BIConversion;
 import nachos.machine.*;
 import nachos.userprog.*;
 
@@ -68,7 +69,10 @@ public class VMProcess extends UserProcess {
         TranslationEntry entry = pageTable[vpn];
         Lib.assertTrue(entry.vpn == vpn && entry.ppn == ppn && entry.valid, "the page is actual not on phys mem");
         if (isUserWrite) {
-            Lib.assertTrue(!entry.readOnly, "write the readonly Page");
+            if (entry.readOnly) {
+                Lib.debug(dbgRO, "write the readonly Page");
+                return -1;
+            }
             entry.dirty = true;
         }
         entry.used = true;
@@ -95,6 +99,7 @@ public class VMProcess extends UserProcess {
         //return super.loadSections();
         //lasy loading code here
         // initalize pageTable
+
         //TODO who will set the read-only flags?
         pageTable = new TranslationEntry[numPages];
         for (int vpn = 0; vpn < numPages; vpn++) {
@@ -102,8 +107,18 @@ public class VMProcess extends UserProcess {
                     false, false, false, false);
 
         }
+        //setReadOnlyBit
+        for (int s = 0; s< coff.getNumSections();s++){
+            CoffSection section = coff.getSection(s);
+            for (int i = 0; i<section.getLength();i++){
+                int vpn = section.getFirstVPN() + i;
+                Lib.debug(dbgRO,"section" + i+ "name:" + section.getName() + "readOnly" + section.isReadOnly());
+                pageTable[vpn].readOnly = section.isReadOnly();
+                if (pageTable[vpn].readOnly)
+                    Lib.debug(dbgRO,"Set readOnly Bit" + vpn + "current Process:"+processID());
+            }
+        }
         return true;
-
     }
 
     /**
@@ -248,6 +263,8 @@ public class VMProcess extends UserProcess {
     private static final char dbgProcess = 'a';
 
     private static final char dbgVM = 'v';
+
+    private static final char dbgRO = 'r';
 
 
 }
