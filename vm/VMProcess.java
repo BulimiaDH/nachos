@@ -115,12 +115,11 @@ public class VMProcess extends UserProcess {
      *
      * @param faultingPage which page to be loaded
      */
-    public boolean loadPageToMem(TranslationEntry faultingPage) {
+    public boolean loadPageToMem(TranslationEntry faultingPage, int ppn) {
         CoffSection section;
         int vpn = faultingPage.vpn;
-        int ppn = faultingPage.ppn;
         //1 load from swap file
-        if (faultingPage.dirty) {
+        if (faultingPage.dirty && !faultingPage.readOnly) {
             int spn = faultingPage.ppn;
             VMKernel.swapper.swapIn(spn, ppn);
             Lib.debug(dbgVM, "load from swap file");
@@ -152,11 +151,13 @@ public class VMProcess extends UserProcess {
         Lib.debug(dbgVM, "start handle page fault, vpn is " + faultingPageVPN);
         TranslationEntry faultingPage = pageTable[faultingPageVPN];
         //1 Find a place to put the page
-        faultingPage.ppn = VMKernel.allocateOnePhysPage(faultingPage);
-        Lib.debug(dbgVM, "new ppn = " + faultingPage.ppn);
+        int victimPPN =VMKernel.allocateOnePhysPage(faultingPage);
+        Lib.debug(dbgVM, "new ppn = " + victimPPN);
         //2. Put the page to mem
-        loadPageToMem(faultingPage);
+        //now the ppn represent spn if its in the swap file
+        Lib.assertTrue(loadPageToMem(faultingPage, victimPPN),"load Page to Mem fail");
         //update page table and inverted page table
+        faultingPage.ppn = victimPPN;
         faultingPage.valid = true;
     }
 

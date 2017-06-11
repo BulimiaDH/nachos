@@ -440,7 +440,7 @@ class Swapper {
     public boolean increaseSize() {
         //TODO keep track of number of swap pages
         int swpSize = numSwapPages;
-        for (int i = 1; i <= swpSize; i++) {
+        for (int i = 0; i < swpSize; i++) {
             freeSwapPages.add(new Integer(swpSize + i));
             numSwapPages++;
         }
