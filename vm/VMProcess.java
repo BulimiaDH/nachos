@@ -79,7 +79,7 @@ public class VMProcess extends UserProcess {
      * Release any resources allocated by <tt>loadSections()</tt>.
      */
     protected void unloadSections() {
-        List<Integer> spns = new LinkedList<>();
+        LinkedList<Integer> spns = new LinkedList<Integer>();
         Lib.debug(dbgVM, "free page size" + UserKernel.freePages.size() + "before unloadSections before the process exit");
 
         VMKernel.flushTLB();
@@ -93,7 +93,7 @@ public class VMProcess extends UserProcess {
                     spns.add(pageTable[vpn].ppn);
             }
         }
-        VMKernel.swapper.releaseSwapPages(spns);
+        VMKernel.swapper.freeAll(spns);
         Lib.debug(dbgVM, "free page size" + UserKernel.freePages.size() + "after unloadSections before the process exit");
     }
 
