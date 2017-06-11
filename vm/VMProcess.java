@@ -36,11 +36,42 @@ public class VMProcess extends UserProcess {
     }
     //TODO check will this kind of override work?
 
+    /**
+     * check TLB to get ppn
+     *
+     * @param vpn
+     * @return ppn
+     */
+    private int hitTLB(int vpn) {
+        TranslationEntry tlbEntry;
+        while (true) {
+            for (int i = 0; i < Machine.processor().getTLBSize(); i++) {
+                tlbEntry = Machine.processor().readTLBEntry(i);
+                if (tlbEntry.vpn == vpn && tlbEntry.valid)
+                    return tlbEntry.ppn;
+            }
+            handleTLBMiss(vpn * pageSize);
+            Lib.debug(dbgVM, "dead while");
+            //TODO what if not return
+        }
+    }
+
     @Override
     protected int pinVirtualPage(int vpn, boolean isUserWrite) {
-        int ppn = super.pinVirtualPage(vpn, isUserWrite);
-        if (ppn == -1)
+        if (vpn < 0 || vpn >= pageTable.length) {
+            Lib.debug(dbgVM, "VMProcess::pinVirtualPage: fail, vpn is not in the correct range!");
             return -1;
+        }
+        //TODO lock?
+        //check whether it is on the TLB
+        int ppn = hitTLB(vpn);
+        TranslationEntry entry = pageTable[vpn];
+        Lib.assertTrue(entry.vpn == vpn && entry.ppn == ppn && entry.valid, "the page is actual not on phys mem");
+        if (isUserWrite) {
+            Lib.assertTrue(!entry.readOnly, "write the readonly Page");
+            entry.dirty = true;
+        }
+        entry.used = true;
         VMKernel.invertedPageTable[ppn].incrementPinCount();
         return ppn;
     }
@@ -75,7 +106,8 @@ public class VMProcess extends UserProcess {
 
     }
 
-    /** Precondition: memoryLock is held
+    /**
+     * Precondition: memoryLock is held
      * Release any resources allocated by <tt>loadSections()</tt>.
      */
     protected void unloadSections() {
@@ -151,14 +183,16 @@ public class VMProcess extends UserProcess {
         Lib.debug(dbgVM, "start handle page fault, vpn is " + faultingPageVPN);
         TranslationEntry faultingPage = pageTable[faultingPageVPN];
         //1 Find a place to put the page
-        int victimPPN =VMKernel.allocateOnePhysPage(faultingPage);
+        int victimPPN = VMKernel.allocateOnePhysPage(faultingPage);
         Lib.debug(dbgVM, "new ppn = " + victimPPN);
         //2. Put the page to mem
         //now the ppn represent spn if its in the swap file
-        Lib.assertTrue(loadPageToMem(faultingPage, victimPPN),"load Page to Mem fail");
+        Lib.assertTrue(loadPageToMem(faultingPage, victimPPN), "load Page to Mem fail");
         //update page table and inverted page table
         faultingPage.ppn = victimPPN;
         faultingPage.valid = true;
+        //unpin the page
+        VMKernel.unpinPageFrame(victimPPN);
     }
 
 
