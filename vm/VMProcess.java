@@ -67,6 +67,7 @@ public class VMProcess extends UserProcess {
         VMKernel.memoryLock.acquire();
         if (vpn < 0 || vpn >= pageTable.length) {
             Lib.debug(dbgVM, "VMProcess::pinVirtualPage: fail, vpn is not in the correct range!");
+            VMKernel.memoryLock.release();
             return -1;
         }
         //check whether it is on mem
