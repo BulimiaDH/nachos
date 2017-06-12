@@ -1,7 +1,6 @@
 package nachos.vm;
 import nachos.machine.*;
 import nachos.userprog.*;
-import sun.misc.VM;
 
 import java.util.Arrays;
 import java.util.LinkedList;
@@ -224,8 +223,9 @@ public class VMProcess extends UserProcess {
         int vpn = Processor.pageFromAddress(vaddr);
         //int off = Processor.offsetFromAddress(vaddr);
 
-        //TODO:What if pageTable doesn't has this entry? or the vpn is invalid? vpn >= numPages? return -1?
-        Lib.assertTrue(vpn >= 0 && vpn < pageTable.length, "The vaddr is invalid");
+        //What if pageTable doesn't has this entry? or the vpn is invalid? vpn >= numPages? return -1?
+        if (vpn < 0 || vpn >= pageTable.length)
+            handleException(Processor.exceptionAddressError);
 
         //Page fault handler
         if (!pageTable[vpn].valid) {
