@@ -238,6 +238,12 @@ public class UserProcess {
         return amount;
     }
 
+    /**
+     *
+     * @param vpn
+     * @param isUserWrite
+     * @return ppn
+     */
     protected int pinVirtualPage(int vpn, boolean isUserWrite) {
         if (vpn < 0 || vpn >= pageTable.length)
             return -1;

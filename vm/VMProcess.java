@@ -1,12 +1,10 @@
 package nachos.vm;
-
-import com.sun.tools.internal.xjc.reader.xmlschema.bindinfo.BIConversion;
 import nachos.machine.*;
 import nachos.userprog.*;
+import sun.misc.VM;
 
 import java.util.Arrays;
 import java.util.LinkedList;
-import java.util.List;
 
 /**
  * A <tt>UserProcess</tt> that supports demand-paging.
@@ -35,39 +33,17 @@ public class VMProcess extends UserProcess {
      */
     public void restoreState() {
     }
-    //TODO check will this kind of override work?
 
     /**
-     * check TLB to get ppn
      *
      * @param vpn
-     * @return ppn
+     * @param isUserWrite
+     * @return
      */
-    private int hitTLB(int vpn) {
-        TranslationEntry tlbEntry;
-        while (true) {
-            for (int i = 0; i < Machine.processor().getTLBSize(); i++) {
-                tlbEntry = Machine.processor().readTLBEntry(i);
-                if (tlbEntry.vpn == vpn && tlbEntry.valid)
-                    return tlbEntry.ppn;
-            }
-            handleTLBMiss(vpn * pageSize);
-            Lib.debug(dbgVM, "dead while");
-            //TODO what if not return
-        }
-    }
-
-    @Override
-    protected int pinVirtualPage(int vpn, boolean isUserWrite) {
-        if (vpn < 0 || vpn >= pageTable.length) {
-            Lib.debug(dbgVM, "VMProcess::pinVirtualPage: fail, vpn is not in the correct range!");
-            return -1;
-        }
-        //TODO lock?
-        //check whether it is on the TLB
-        int ppn = hitTLB(vpn);
+    private int setDirtyUsedBit(int vpn, boolean isUserWrite) {
         TranslationEntry entry = pageTable[vpn];
-        Lib.assertTrue(entry.vpn == vpn && entry.ppn == ppn && entry.valid, "the page is actual not on phys mem");
+        int ppn = pageTable[vpn].ppn;
+        Lib.assertTrue(entry.vpn == vpn && entry.valid, "the page is actual not on phys mem");
         if (isUserWrite) {
             if (entry.readOnly) {
                 Lib.debug(dbgRO, "write the readonly Page");
@@ -76,17 +52,44 @@ public class VMProcess extends UserProcess {
             entry.dirty = true;
         }
         entry.used = true;
-        VMKernel.invertedPageTable[ppn].incrementPinCount();
+
+        return ppn;
+    }
+
+    /**
+     *
+     * @param vpn
+     * @param isUserWrite
+     * @return
+     */
+    @Override
+    protected int pinVirtualPage(int vpn, boolean isUserWrite) {
+        VMKernel.memoryLock.acquire();
+        if (vpn < 0 || vpn >= pageTable.length) {
+            Lib.debug(dbgVM, "VMProcess::pinVirtualPage: fail, vpn is not in the correct range!");
+            return -1;
+        }
+        //check whether it is on mem
+
+        if (!pageTable[vpn].valid) {
+            VMKernel.memoryLock.release();
+            handlePageFault(vpn, true); //pin here, lock release here
+
+            return setDirtyUsedBit(vpn, isUserWrite);
+        }
+
+        int ppn = setDirtyUsedBit(vpn, isUserWrite);
+
+        if (ppn != -1)
+            VMKernel.pinPageFrame(ppn);
+
+        VMKernel.memoryLock.release();
         return ppn;
     }
 
     @Override
     protected void unpinVirtualPage(int vpn) {
-        VMKernel.memoryLock.acquire();
-        int ppn = pageTable[vpn].ppn;
-        VMKernel.invertedPageTable[ppn].decrementPinCount();
-        VMKernel.unpinnedPage.wake();
-        VMKernel.memoryLock.release();
+        VMKernel.unpinPageFrame(pageTable[vpn].ppn);
     }
 
     /**
@@ -100,7 +103,6 @@ public class VMProcess extends UserProcess {
         //lasy loading code here
         // initalize pageTable
 
-        //TODO who will set the read-only flags?
         pageTable = new TranslationEntry[numPages];
         for (int vpn = 0; vpn < numPages; vpn++) {
             pageTable[vpn] = new TranslationEntry(vpn, -1,
@@ -163,7 +165,6 @@ public class VMProcess extends UserProcess {
      * @param faultingPage which page to be loaded
      */
     public boolean loadPageToMem(TranslationEntry faultingPage, int ppn) {
-        CoffSection section;
         int vpn = faultingPage.vpn;
         //1 load from swap file
         if (faultingPage.dirty && !faultingPage.readOnly) {
@@ -185,6 +186,9 @@ public class VMProcess extends UserProcess {
             Lib.debug(dbgVM, "fail, vpn is out of range");
             return false;
         }
+        //update page table and inverted page table
+        faultingPage.ppn = ppn;
+        faultingPage.valid = true;
         return true;
     }
 
@@ -194,28 +198,30 @@ public class VMProcess extends UserProcess {
      *
      * @param faultingPageVPN
      */
-    private void handlePageFault(int faultingPageVPN) {
+    private void handlePageFault(int faultingPageVPN, boolean calledFromPinPage) {
         Lib.debug(dbgVM, "start handle page fault, vpn is " + faultingPageVPN);
         TranslationEntry faultingPage = pageTable[faultingPageVPN];
         //1 Find a place to put the page
-        int victimPPN = VMKernel.allocateOnePhysPage(faultingPage);
+        int victimPPN = VMKernel.allocateOnePhysPage(faultingPage); //Pin the pageFrame here
         Lib.debug(dbgVM, "new ppn = " + victimPPN);
         //2. Put the page to mem
         //now the ppn represent spn if its in the swap file
         Lib.assertTrue(loadPageToMem(faultingPage, victimPPN), "load Page to Mem fail");
-        //update page table and inverted page table
-        faultingPage.ppn = victimPPN;
-        faultingPage.valid = true;
-        //unpin the page
-        VMKernel.unpinPageFrame(victimPPN);
+        //unpin after load
+        if (!calledFromPinPage)
+            VMKernel.unpinPageFrame(faultingPage.ppn);
     }
 
-
+    /**
+     * If fromHitTLB == true, means this function is called in pinVirtualMem
+     * Then precondition: memoryLock is acquired
+     * If fromHitTLB == false, means this function is called by Processor,
+     */
     private void handleTLBMiss(int vaddr) {
         Lib.debug(dbgVM, "TLBMiss Happens");
         //1. vaddr -> vpn
         int vpn = Processor.pageFromAddress(vaddr);
-        int off = Processor.offsetFromAddress(vaddr);
+        //int off = Processor.offsetFromAddress(vaddr);
 
         //TODO:What if pageTable doesn't has this entry? or the vpn is invalid? vpn >= numPages? return -1?
         Lib.assertTrue(vpn >= 0 && vpn < pageTable.length, "The vaddr is invalid");
@@ -223,18 +229,20 @@ public class VMProcess extends UserProcess {
         //Page fault handler
         if (!pageTable[vpn].valid) {
             Lib.debug(dbgVM, "PageFault Happens");
-            handlePageFault(vpn);
+            handlePageFault(vpn, false); //pin the page inside
         }
 
         //2. find the TranslationEntry corresponding to the ppn
         TranslationEntry tlbEntry = pageTable[vpn];
 
         //3. find a spot in the TLB to put the page corresponding to the ppn
+        //TODO ??pin the entry?
         int TLBWritePos = VMKernel.allocateTLBEntry();
         Lib.debug(dbgVM, "New TLB Position" + TLBWritePos);
 
         //4. put the TranslationEntry corresponding to the ppn in the TLB
         Machine.processor().writeTLBEntry(TLBWritePos, tlbEntry);
+
     }
 
 

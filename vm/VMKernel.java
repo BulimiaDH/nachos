@@ -3,11 +3,7 @@ package nachos.vm;
 import nachos.machine.*;
 import nachos.threads.*;
 import nachos.userprog.*;
-import nachos.vm.*;
-
-import java.util.Arrays;
 import java.util.LinkedList;
-import java.util.List;
 
 /**
  * A kernel that can support multiple demand-paging user processes.
@@ -40,8 +36,9 @@ public class VMKernel extends UserKernel {
      * Atomic: make sure the PTE is valid and pin it
      * @param ppn
      */
+    //TODO check who call this and lock
     public static void pinPageFrame(int ppn) {
-        Lib.assertTrue(memoryLock.isHeldByCurrentThread());
+//        Lib.assertTrue(memoryLock.isHeldByCurrentThread());
         Lib.assertTrue(invertedPageTable[ppn].getProcess().processID() == VMKernel.currentProcess().processID(),
                 "A non-owner process is pinning a page!");
         invertedPageTable[ppn].incrementPinCount();
@@ -52,10 +49,9 @@ public class VMKernel extends UserKernel {
 
     public static void unpinPageFrame(int ppn) {
         memoryLock.acquire();
-
         Lib.debug(dbgVM,"- unpinning physical page #" + ppn + ". pinCount was " + invertedPageTable[ppn].getPinCount() + "\t - proc #" + VMKernel.currentProcess().processID());
         unpinCount++;
-
+        Lib.assertTrue(0<=ppn && ppn < VMKernel.getNumPhysPages());
         Lib.assertTrue(invertedPageTable[ppn].getProcess().processID() == VMKernel.currentProcess().processID(),
                 "A non-owner process is unpinning a page!");
         invertedPageTable[ppn].decrementPinCount();
@@ -181,13 +177,13 @@ public class VMKernel extends UserKernel {
     }
 
     /**
-     * Precondition: called by handlePageFault
+     * Precondition: called by handlePageFault, memoryLock is acquired
      *
      * @return
      */
     public static int allocateOnePhysPage(TranslationEntry faultingPage) {
         memoryLock.acquire();
-        int victimPPN = -1;
+        int victimPPN;
         int spn = -1;
 
         //1.1 There is a free physical page
@@ -201,6 +197,7 @@ public class VMKernel extends UserKernel {
             TranslationEntry victimEntry = invertedPageTable[victimPPN].getEntry();
             if (!invertedPageTable[victimPPN].isReadOnly() && invertedPageTable[victimPPN].isDirty()) {
                 spn = VMKernel.swapper.swapOut(victimEntry);
+
                 swapCount++;
                 Lib.debug(dbgVM, "-> Paged out #" + swapCount + " \t{ppn=" + victimEntry.ppn + ", spn=" + spn + "}.\t - Proc #" + VMKernel.currentProcess().processID());
             }
@@ -211,7 +208,7 @@ public class VMKernel extends UserKernel {
         VMKernel.invertedPageTable[victimPPN] = new PageFrame(currentProcess(), faultingPage);
 
         Lib.assertTrue(victimPPN != -1);
-        //pin the page here
+        //pin the page here, unpin after loaded
         pinPageFrame(victimPPN);
         memoryLock.release();
         return victimPPN;
@@ -234,8 +231,10 @@ public class VMKernel extends UserKernel {
             if (invertedPageTable[clockHand].isPinned()) {
                 totalPinCount += 1;
                 // if all pages are pinned
-                if (totalPinCount == NUMBER_OF_FRAMES)
+                if (totalPinCount == NUMBER_OF_FRAMES) {
                     unpinnedPage.sleep();
+                    totalPinCount = 0;
+                }
             } else {
                 totalPinCount = 0;
                 invertedPageTable[clockHand].setUnused();
@@ -248,7 +247,9 @@ public class VMKernel extends UserKernel {
     }
 
 
-    public int getNumPhysPages() {
+
+
+    public static int getNumPhysPages() {
         return Machine.processor().getNumPhysPages();
     }
 
@@ -256,9 +257,6 @@ public class VMKernel extends UserKernel {
     private static VMProcess dummy1 = null;
 
     private static final char dbgVM = 'v';
-    //TODO
-    protected static OpenFile swapFile;
-    protected static LinkedList freeSwapPages;
     public static PageFrame[] invertedPageTable;
     public static Swapper swapper;
 
@@ -359,7 +357,7 @@ class PageFrame {
 class Swapper {
 
     /**
-     * TODO// :- Free all swapped pages on process exit
+     *         - Free all swapped pages on process exit
      *         - Doubling the size of the linked list if we run out of space DONE
      *         - Initializing swap file and free swap pages DONE
      *         - Swapping in files from the swap file to main memory DONE
